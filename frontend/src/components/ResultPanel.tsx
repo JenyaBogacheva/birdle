@@ -1,7 +1,9 @@
 /**
  * Component to display bird identification results.
  */
+import { useState } from 'react';
 import type { RecommendationResponse } from '../types/observation';
+import { SpeciesCard } from './SpeciesCard';
 
 interface ResultPanelProps {
   result: RecommendationResponse | null;
@@ -9,6 +11,8 @@ interface ResultPanelProps {
 }
 
 export function ResultPanel({ result, error }: ResultPanelProps) {
+  const [showAlternates, setShowAlternates] = useState(false);
+
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6">
@@ -41,8 +45,12 @@ export function ResultPanel({ result, error }: ResultPanelProps) {
     return null;
   }
 
+  const hasAlternates =
+    result.alternate_species && result.alternate_species.length > 0;
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
+      {/* Summary Message */}
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-2">
           Identification Result
@@ -50,78 +58,54 @@ export function ResultPanel({ result, error }: ResultPanelProps) {
         <p className="text-gray-700 leading-relaxed">{result.message}</p>
       </div>
 
+      {/* Top Match */}
       {result.top_species && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-md font-semibold text-blue-900">Top Match</h4>
-            {result.top_species.confidence && (
-              <span
-                className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  result.top_species.confidence === 'high'
-                    ? 'bg-green-100 text-green-800'
-                    : result.top_species.confidence === 'medium'
-                    ? 'bg-yellow-100 text-yellow-800'
-                    : 'bg-orange-100 text-orange-800'
-                }`}
-              >
-                {result.top_species.confidence.toUpperCase()} CONFIDENCE
-              </span>
-            )}
-          </div>
-          <dl className="space-y-2">
-            <div>
-              <dt className="text-sm font-medium text-blue-800">
-                Common Name
-              </dt>
-              <dd className="text-base text-blue-900">
-                {result.top_species.common_name}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm font-medium text-blue-800">
-                Scientific Name
-              </dt>
-              <dd className="text-base italic text-blue-900">
-                {result.top_species.scientific_name}
-              </dd>
-            </div>
-            {result.top_species.reasoning && (
-              <div>
-                <dt className="text-sm font-medium text-blue-800">
-                  Reasoning
-                </dt>
-                <dd className="text-sm text-blue-900">
-                  {result.top_species.reasoning}
-                </dd>
-              </div>
-            )}
-            <div>
-              <a
-                href={result.top_species.range_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
-              >
-                View on eBird
-                <svg
-                  className="ml-1 h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                  />
-                </svg>
-              </a>
-            </div>
-          </dl>
+        <div>
+          <h4 className="text-md font-semibold text-gray-900 mb-3 flex items-center">
+            🎯 Top Match
+          </h4>
+          <SpeciesCard species={result.top_species} isPrimary={true} />
         </div>
       )}
 
+      {/* Alternative Matches */}
+      {hasAlternates && (
+        <div>
+          <button
+            onClick={() => setShowAlternates(!showAlternates)}
+            className="flex items-center justify-between w-full text-left text-md font-semibold text-gray-900 hover:text-gray-700"
+          >
+            <span>
+              Alternative Matches ({result.alternate_species!.length})
+            </span>
+            <svg
+              className={`h-5 w-5 transform transition-transform ${
+                showAlternates ? 'rotate-180' : ''
+              }`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
+            </svg>
+          </button>
+
+          {showAlternates && (
+            <div className="mt-3 space-y-3">
+              {result.alternate_species!.map((species, index) => (
+                <SpeciesCard key={index} species={species} isPrimary={false} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Clarification Question */}
       {result.clarification && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <h4 className="text-sm font-medium text-yellow-900 mb-2">

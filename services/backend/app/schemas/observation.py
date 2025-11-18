@@ -23,6 +23,8 @@ class SpeciesInfo(BaseModel):
     range_link: str
     confidence: Optional[str] = Field(None, description="Confidence level: high, medium, or low")
     reasoning: Optional[str] = Field(None, description="Reasoning for the identification")
+    image_url: Optional[str] = Field(None, description="URL to species image from Macaulay Library")
+    image_credit: Optional[str] = Field(None, description="Photographer credit")
 
 
 class RecommendationResponse(BaseModel):
@@ -30,4 +32,7 @@ class RecommendationResponse(BaseModel):
 
     message: str = Field(..., description="Summary message about the identification")
     top_species: Optional[SpeciesInfo] = Field(None, description="Top matching species information")
+    alternate_species: list[SpeciesInfo] = Field(
+        default_factory=list, description="Alternative possible species (up to 2)"
+    )
     clarification: Optional[str] = Field(None, description="Follow-up question if more info needed")

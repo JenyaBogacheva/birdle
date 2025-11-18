@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 # eBird API configuration
 EBIRD_API_BASE = "https://api.ebird.org/v2"
 
+# Macaulay Library API configuration
+MACAULAY_API_BASE = "https://search.macaulaylibrary.org/api/v1"
+
 # Get eBird token from environment (standalone script doesn't use settings module)
 EBIRD_TOKEN = os.getenv("EBIRD_TOKEN", "cqlorenascpl")
 
@@ -90,6 +93,20 @@ async def list_tools() -> list[types.Tool]:
                     },
                 },
                 "required": ["query"],
+            },
+        ),
+        types.Tool(
+            name="get_species_image",
+            description="Get top-rated image for a bird species from Macaulay Library",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "species_code": {
+                        "type": "string",
+                        "description": "eBird species code (e.g. 'norcar' for Northern Cardinal)",
+                    },
+                },
+                "required": ["species_code"],
             },
         ),
     ]
@@ -220,6 +237,43 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
                 logger.info(f"Found {len(search_result['matches'])} species matches for: {query}")
                 return [types.TextContent(type="text", text=json.dumps(search_result, indent=2))]
+
+        elif name == "get_species_image":
+            species_code = arguments["species_code"]
+
+            # Query Macaulay Library for top-rated image
+            url = f"{MACAULAY_API_BASE}/search"
+            params = {
+                "taxonCode": species_code,
+                "mediaType": "photo",
+                "sort": "rating_rank_desc",  # Top-rated images first
+                "count": 1,
+            }
+
+            logger.info(f"Fetching image for species: {species_code}")
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+
+                image_result: dict[str, Any] = {
+                    "species_code": species_code,
+                    "image_url": None,
+                    "photographer": None,
+                }
+
+                # Macaulay Library returns results.content array
+                results_content = data.get("results", {}).get("content", [])
+                if results_content and len(results_content) > 0:
+                    result = results_content[0]
+                    image_result["image_url"] = result.get("previewUrl")
+                    image_result["photographer"] = result.get("userDisplayName", "Unknown")
+                    logger.info(f"Found image for {species_code} by {image_result['photographer']}")
+                else:
+                    logger.info(f"No images found for species: {species_code}")
+
+                return [types.TextContent(type="text", text=json.dumps(image_result, indent=2))]
 
         else:
             logger.warning(f"Unknown tool requested: {name}")

@@ -69,41 +69,63 @@ async def extract_region_code(location: str) -> str:
         location: User-provided location
 
     Returns:
-        eBird region code (e.g., 'US-NY', 'AU', 'GB')
+        eBird region code (e.g., 'US-NY', 'AU', 'GB', 'NZ', 'BR', 'IN', etc.)
+
+    Raises:
+        HTTPException: If region cannot be determined
     """
     prompt = f"""Convert this location to an eBird region code.
 
 Location: "{location}"
 
 Rules:
-- Countries: Use 2-letter ISO codes (e.g., AU, GB, CA, NZ, IN, BR, FR, DE, ES, IT, JP, CN, MX, ZA)
+- Countries: Use 2-letter ISO codes (e.g., AU, GB, CA, NZ, IN, BR, FR, DE, ES, IT,
+  JP, CN, MX, ZA, AR, CL, PE, CO, EC, VE, KE, TZ, UG, ZW, BW, MY, TH, PH, ID)
 - US States: Use format US-XX (e.g., US-NY, US-CA, US-TX)
-- If ambiguous or unknown: return "US"
+- Canadian Provinces: Use format CA-XX (e.g., CA-ON, CA-BC, CA-QC)
+- Australian States: Use format AU-XX (e.g., AU-NSW, AU-VIC, AU-QLD)
+- If ambiguous: return "UNKNOWN"
 
 Respond with ONLY the region code, nothing else.
 
 Examples:
 - "Australia" → AU
+- "Sydney, Australia" → AU-NSW
 - "New York" → US-NY
-- "California" → US-CA
-- "United Kingdom" → GB
-- "Sydney" → AU
 - "London" → GB
-- "Pennsylvania" → US-PA"""
+- "Mumbai" → IN
+- "Tokyo" → JP
+- "Cape Town" → ZA
+- "São Paulo" → BR
+- "Auckland" → NZ
+- "Paris" → FR
+- "Berlin" → DE"""
 
     try:
         response = await openai_client.chat_completion(
-            system_prompt="You are a location normalizer. Return only the eBird region code.",
+            system_prompt=(
+                "You are a location normalizer. " "Return only the eBird region code or UNKNOWN."
+            ),
             user_message=prompt,
         )
 
-        region_code: str = str(response.get("content", "US")).strip().upper()
+        region_code: str = str(response.get("content", "UNKNOWN")).strip().upper()
         logger.info(f"LLM extracted region code: {location} → {region_code}")
+
+        if region_code == "UNKNOWN":
+            raise ValueError("Could not determine region")
+
         return region_code
 
     except Exception as e:
-        logger.warning(f"Failed to extract region code via LLM: {e}, defaulting to US")
-        return "US"
+        logger.warning(f"Failed to extract region code: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Could not determine region from location. "
+                "Please be more specific (e.g., 'Sydney, Australia' or 'London, UK')"
+            ),
+        )
 
 
 @router.post("/identify", response_model=RecommendationResponse)
@@ -111,7 +133,7 @@ async def identify_bird(observation: ObservationInput) -> RecommendationResponse
     """
     Identify a bird based on user observation description.
 
-    Uses OpenAI for reasoning and eBird MCP for regional species data.
+    Uses OpenAI for reasoning and eBird MCP for regional species data and images.
     """
     logger.info(
         f"Received identification request: description='{observation.description[:50]}...', "
@@ -127,10 +149,18 @@ async def identify_bird(observation: ObservationInput) -> RecommendationResponse
                 status_code=400, detail="Description contains inappropriate content"
             )
 
-        # Step 2: Get regional context from eBird
-        region = "US"  # Default
-        if observation.location:
-            region = await extract_region_code(observation.location)
+        # Step 2: Require location for bird identification (global support)
+        if not observation.location:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Location is required for bird identification. "
+                    "Please specify where you saw the bird "
+                    "(e.g., 'Sydney, Australia' or 'New York, USA')"
+                ),
+            )
+
+        region = await extract_region_code(observation.location)
 
         logger.info(f"Fetching eBird data for region: {region}")
         ebird_data = await ebird_helper.get_recent_observations(region=region, days=14)
@@ -159,49 +189,73 @@ async def identify_bird(observation: ObservationInput) -> RecommendationResponse
         # Step 5: Parse and validate response
         message = response.get("message", "")
         top_species_data = response.get("top_species")
+        alternate_species_data = response.get("alternate_species", [])
         clarification = response.get("clarification")
 
-        top_species = None
-        if top_species_data:
-            # Match the identified species to eBird data to get correct species code
-            species_code = ""
-            common_name = top_species_data.get("common_name", "Unknown")
+        # Helper function to build species info with image
+        async def build_species_info(species_data: dict) -> SpeciesInfo:
+            common_name = species_data.get("common_name", "Unknown")
 
-            # Search eBird data for matching species
+            # Match species to eBird data to get correct species code
+            species_code = ""
             if ebird_data and "species_observed" in ebird_data:
                 for species in ebird_data["species_observed"]:
                     if species.get("common_name", "").lower() == common_name.lower():
                         species_code = species.get("species_code", "")
-                        logger.info(f"Matched to eBird species code: {species_code}")
+                        logger.info(f"Matched '{common_name}' to eBird code: {species_code}")
                         break
 
             # Build eBird link
             if species_code:
-                # Direct species link if we found the code
                 range_link = f"https://ebird.org/species/{species_code}"
             else:
-                # Fallback: search link if species not in regional data
-                logger.warning(
-                    f"Species '{common_name}' not found in eBird data, using search link"
-                )
+                logger.warning(f"Species '{common_name}' not in eBird data, using search link")
                 search_name = common_name.replace(" ", "+")
                 range_link = f"https://ebird.org/explore?q={search_name}"
 
-            top_species = SpeciesInfo(
-                scientific_name=top_species_data.get("scientific_name", "Unknown"),
+            # Fetch image from Macaulay Library via MCP
+            image_url = None
+            image_credit = None
+            if species_code:
+                image_data = await ebird_helper.get_species_image(species_code)
+                if image_data:
+                    image_url = image_data.get("image_url")
+                    image_credit = image_data.get("photographer")
+                    logger.info(f"Retrieved image for '{common_name}'")
+
+            return SpeciesInfo(
+                scientific_name=species_data.get("scientific_name", "Unknown"),
                 common_name=common_name,
                 range_link=range_link,
-                confidence=top_species_data.get("confidence"),
-                reasoning=top_species_data.get("reasoning"),
+                confidence=species_data.get("confidence"),
+                reasoning=species_data.get("reasoning"),
+                image_url=image_url,
+                image_credit=image_credit,
             )
 
+        # Build top species with image
+        top_species = None
+        if top_species_data:
+            top_species = await build_species_info(top_species_data)
             logger.info(
-                f"Identified species: {top_species.common_name} "
-                f"(confidence: {top_species.confidence}, code: {species_code})"
+                f"Top species: {top_species.common_name} (confidence: {top_species.confidence})"
+            )
+
+        # Build alternate species with images
+        alternate_species = []
+        for alt_data in alternate_species_data:
+            alt_species = await build_species_info(alt_data)
+            alternate_species.append(alt_species)
+            logger.info(
+                f"Alternate species: {alt_species.common_name} "
+                f"(confidence: {alt_species.confidence})"
             )
 
         result = RecommendationResponse(
-            message=message, top_species=top_species, clarification=clarification
+            message=message,
+            top_species=top_species,
+            alternate_species=alternate_species,
+            clarification=clarification,
         )
 
         return result

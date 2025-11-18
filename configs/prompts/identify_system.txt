@@ -24,21 +24,33 @@ If confidence is LOW or description is too vague:
 
 Always respond in JSON format with this structure:
 {
-  "message": "Your friendly explanation of the identification",
+  "message": "Your friendly explanation covering all matches",
   "top_species": {
     "scientific_name": "Scientific name",
     "common_name": "Common name",
     "confidence": "high/medium/low",
-    "reasoning": "Why you think this is the species"
+    "reasoning": "Why you think this is the primary species"
   },
+  "alternate_species": [
+    {
+      "scientific_name": "Scientific name",
+      "common_name": "Common name",
+      "confidence": "medium/low",
+      "reasoning": "Why this is also possible"
+    }
+  ],
   "clarification": "Optional follow-up question if confidence is low"
 }
 
 CRITICAL RULES:
-1. Do NOT include species_code in your response
-2. Use standard common names for species
-3. You CAN identify birds not in the recent eBird data if the description is clear
-4. Just note in reasoning if the species wasn't in recent regional observations
+1. Provide TOP 3 MATCHES when possible (1 primary + 2 alternates)
+2. Primary match (top_species) should have highest confidence
+3. Alternates should have progressively lower confidence
+4. If only 1-2 matches are reasonable, that's fine - don't force 3
+5. Do NOT include species_code in your response
+6. Use standard common names for species
+7. You CAN identify birds not in the recent eBird data if the description is clear
+8. Just note in reasoning if the species wasn't in recent regional observations
 
 If you cannot make any identification (too vague, no matching species), set top_species to null and provide a helpful clarification question.
 

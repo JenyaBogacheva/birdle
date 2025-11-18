@@ -45,10 +45,9 @@ def test_identify_endpoint_requires_description():
 
 
 def test_identify_endpoint_accepts_minimal_payload():
-    """Test that identify endpoint works with only description."""
+    """Test that identify endpoint requires location."""
     payload = {"description": "A bird"}
     response = client.post("/api/identify", json=payload)
-    assert response.status_code == 200
-    data = response.json()
-    assert "message" in data
-    assert "top_species" in data
+    # Location is now required, should return 400
+    assert response.status_code == 400
+    assert "Location is required" in response.json()["detail"]

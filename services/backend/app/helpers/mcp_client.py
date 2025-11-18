@@ -176,6 +176,48 @@ class eBirdMCPHelper:  # noqa: N801 - eBird is a proper brand name
                 "species_observed": [],
             }
 
+    async def get_species_image(self, species_code: str) -> Optional[dict[str, Any]]:
+        """
+        Get top-rated image for a species from Macaulay Library.
+
+        Args:
+            species_code: eBird species code (e.g., 'norcar')
+
+        Returns:
+            Dictionary with image_url and photographer, or None if not found
+        """
+        if not species_code:
+            logger.warning("No species code provided for image fetch")
+            return None
+
+        try:
+            result = await self.call_tool("get_species_image", {"species_code": species_code})
+
+            # Parse the MCP response
+            if result and "content" in result:
+                content_list = result["content"]
+                if isinstance(content_list, list) and len(content_list) > 0:
+                    text_data = content_list[0].get("text", "{}")
+                    parsed: dict[str, Any] = json.loads(text_data)
+
+                    # Return None if no image found
+                    if parsed.get("image_url"):
+                        logger.info(f"Retrieved image for {species_code}")
+                        return {
+                            "image_url": parsed["image_url"],
+                            "photographer": parsed.get("photographer", "Unknown"),
+                        }
+                    else:
+                        logger.info(f"No image available for {species_code}")
+                        return None
+
+            logger.warning("MCP returned unexpected format for image")
+            return None
+
+        except Exception as e:
+            logger.warning(f"Error fetching image for {species_code}: {e}")
+            return None
+
     async def close(self):
         """Close the MCP server."""
         if self._started and self.process:

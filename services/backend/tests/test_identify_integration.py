@@ -43,6 +43,11 @@ async def test_identify_bird_success():
         "clarification": None,
     }
 
+    # Mock images
+    mock_image = AsyncMock(
+        return_value={"image_url": "https://example.com/norcar.jpg", "photographer": "Test User"}
+    )
+
     with (
         patch(
             "services.backend.app.routes.identify.openai_client.moderate_content",
@@ -54,7 +59,14 @@ async def test_identify_bird_success():
         ),
         patch(
             "services.backend.app.routes.identify.openai_client.chat_completion",
-            new=AsyncMock(return_value=mock_openai_response),
+            side_effect=[
+                {"content": "US-PA"},  # Region extraction
+                mock_openai_response,  # Identification
+            ],
+        ),
+        patch(
+            "services.backend.app.routes.identify.ebird_helper.get_species_image",
+            mock_image,
         ),
     ):
         response = client.post(
@@ -102,12 +114,15 @@ async def test_identify_bird_needs_clarification():
         ),
         patch(
             "services.backend.app.routes.identify.openai_client.chat_completion",
-            new=AsyncMock(return_value=mock_openai_response),
+            side_effect=[
+                {"content": "US"},  # Region extraction
+                mock_openai_response,  # Identification
+            ],
         ),
     ):
         response = client.post(
             "/api/identify",
-            json={"description": "I saw a bird"},
+            json={"description": "I saw a bird", "location": "United States"},
         )
 
         assert response.status_code == 200
@@ -161,6 +176,11 @@ async def test_identify_bird_medium_confidence():
         "clarification": None,
     }
 
+    # Mock images
+    mock_image = AsyncMock(
+        return_value={"image_url": "https://example.com/amegfi.jpg", "photographer": "Test User"}
+    )
+
     with (
         patch(
             "services.backend.app.routes.identify.openai_client.moderate_content",
@@ -172,7 +192,14 @@ async def test_identify_bird_medium_confidence():
         ),
         patch(
             "services.backend.app.routes.identify.openai_client.chat_completion",
-            new=AsyncMock(return_value=mock_openai_response),
+            side_effect=[
+                {"content": "US-NY"},  # Region extraction
+                mock_openai_response,  # Identification
+            ],
+        ),
+        patch(
+            "services.backend.app.routes.identify.ebird_helper.get_species_image",
+            mock_image,
         ),
     ):
         response = client.post(

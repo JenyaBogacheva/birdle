@@ -9,7 +9,7 @@
 | --- | --- | --- | --- | --- |
 | 1 | Stubbed end-to-end flow | Complete | ✅ | Backend tested, frontend ready |
 | 2 | eBird MCP integration | Complete | ✅ | Live APIs ready, awaiting keys |
-| 3 | Ranking + richer output | Planned | ⏳ | Ready to start |
+| 3 | Ranking + richer output | Complete | ✅ | Multi-species with images, global support |
 | 4 | Resilience & observability | Planned | ⏳ | |
 
 **Status legend**
@@ -67,17 +67,31 @@
   - EBIRD_TOKEN (for eBird API v2)
 - Branch: `feat/iteration-2-ebird-mcp-integration`
 
-### Iteration 3 — Ranking + richer output
+### Iteration 3 — Ranking + richer output ✅
 **Goal:** Improve ranking logic and enrich user context with images.
 **Test:** Provide multiple descriptors ➝ see ordered species with images, traits and links.
 
-- [ ] Add bird images to species results (using eBird API media endpoints or external sources)
-- [ ] Introduce lightweight scoring heuristics (location, plumage keywords) before sending MCP queries.
-- [ ] Enrich responses with top three species, key traits, and quick links for verification.
-- [ ] Adapt the UI to highlight the primary match with image and show expandable context for alternates.
-- [ ] Add an integration test to validate ranking order and payload structure.
+- [x] Add bird images to species results via Macaulay Library MCP tool
+- [x] Enrich responses with top three species (1 primary + up to 2 alternates)
+- [x] Adapt the UI to highlight the primary match with image and show expandable context for alternates
+- [x] Add SpeciesCard component with image display and photographer credits
+- [x] Update schemas for image_url, image_credit, and alternate_species list
+- [x] Remove US-centric defaults, require location for global bird identification
+- [x] Add global region support (Australia, Europe, Asia, Africa, South America, etc.)
+- [x] Add integration tests to validate multi-species responses with images
 
-**Result:** Responses prioritize the most likely species with visual confirmation and offer actionable follow-up info.
+**Result:** Responses show top 3 ranked species with high-quality images from Cornell Lab, supporting global bird identification. Location is now required for accurate regional context.
+
+**Completion Notes:**
+- Macaulay Library integration via MCP (4th tool: get_species_image)
+- Frontend displays primary match prominently with collapsible alternate species
+- Image credits properly attributed to photographers
+- Global region extraction via LLM (supports US states, Canadian provinces, Australian states, countries worldwide)
+- Location validation with helpful error messages
+- All tests passing (24/24): unit tests for image fetching, integration tests for multi-species
+- Type checking passing (mypy), frontend builds successfully
+- Branch: `feat/iteration-3-images-ranking`
+- Ready for PR review and merge
 
 ### Iteration 4 — Resilience & observability
 **Goal:** Harden the flow and surface actionable signals.

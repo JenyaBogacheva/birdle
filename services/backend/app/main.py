@@ -44,6 +44,8 @@ app.add_middleware(
         settings.frontend_base_url,
         "http://localhost:5173",
         "http://localhost:5174",  # Alternative port
+        "http://10.42.0.60:5173",  # Server IP
+        "http://jenya:5173",  # Server hostname
     ],
     allow_credentials=True,
     allow_methods=["*"],

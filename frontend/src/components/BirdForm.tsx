@@ -17,13 +17,13 @@ export function BirdForm({ onSubmit, isLoading }: BirdFormProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!description.trim()) {
+    if (!description.trim() || !location.trim()) {
       return;
     }
 
     const observation: ObservationInput = {
       description: description.trim(),
-      ...(location.trim() && { location: location.trim() }),
+      location: location.trim(),
       ...(observedAt.trim() && { observed_at: observedAt.trim() }),
     };
 
@@ -57,15 +57,16 @@ export function BirdForm({ onSubmit, isLoading }: BirdFormProps) {
             htmlFor="location"
             className="block text-sm font-medium text-gray-700 mb-2"
           >
-            Location (optional)
+            Location *
           </label>
           <input
             id="location"
             type="text"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            placeholder="e.g., New York, NY"
+            placeholder="e.g., Sydney, Australia or New York, USA"
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            required
             disabled={isLoading}
           />
         </div>
@@ -91,7 +92,7 @@ export function BirdForm({ onSubmit, isLoading }: BirdFormProps) {
 
       <button
         type="submit"
-        disabled={isLoading || !description.trim()}
+        disabled={isLoading || !description.trim() || !location.trim()}
         className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {isLoading ? 'Identifying...' : 'Identify Bird'}
