@@ -55,6 +55,8 @@ cd /mnt/nfs/users/jenya/birds && source .venv/bin/activate && (unset VIRTUAL_ENV
 - ✅ All tests must pass before committing or merging.
 - ✅ Test frontend builds locally: `cd frontend && npm run build`
 - ✅ Test backend type checking: `poetry run mypy services/backend/app --ignore-missing-imports`
+- ✅ Write automated tests for each iteration (backend unit tests, integration tests)
+- ✅ Test new endpoints and components before considering iteration complete
 - ❌ **NEVER** skip pre-commit hooks (`--no-verify`).
 - ❌ **NEVER** commit with failing tests.
 - ❌ **NEVER** bypass CI checks to merge.
