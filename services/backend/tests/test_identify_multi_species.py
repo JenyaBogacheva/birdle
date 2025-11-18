@@ -223,3 +223,77 @@ async def test_identify_global_region():
         assert result.top_species.common_name == "Australian Magpie"
         assert result.top_species.confidence == "high"
         assert result.top_species.image_url == "https://example.com/ausmag.jpg"
+
+
+@pytest.mark.asyncio
+async def test_identify_city_without_country():
+    """Test identification with well-known city name only (Belgrade → Serbia)."""
+    from services.backend.app.routes.identify import identify_bird
+    from services.backend.app.schemas.observation import ObservationInput
+
+    observation = ObservationInput(
+        description="A small gray bird with black head", location="Belgrade"
+    )
+
+    # Mock OpenAI responses for Serbia
+    mock_openai_moderate = AsyncMock(return_value=True)
+    mock_openai_identify = AsyncMock(
+        return_value={
+            "message": "This appears to be a Great Tit.",
+            "top_species": {
+                "scientific_name": "Parus major",
+                "common_name": "Great Tit",
+                "confidence": "high",
+                "reasoning": "Small gray bird with black head, common in Serbia.",
+            },
+            "alternate_species": [],
+        }
+    )
+
+    # Mock eBird observations for Serbia
+    mock_ebird_obs = AsyncMock(
+        return_value={
+            "region": "RS",
+            "days_searched": 14,
+            "total_observations": 60,
+            "species_observed": [
+                {
+                    "common_name": "Great Tit",
+                    "scientific_name": "Parus major",
+                    "species_code": "gretit1",
+                    "observation_count": 35,
+                }
+            ],
+        }
+    )
+
+    # Mock image fetching
+    mock_image = AsyncMock(
+        return_value={
+            "image_url": "https://example.com/gretit.jpg",
+            "photographer": "European Birder",
+        }
+    )
+
+    with (
+        patch(
+            "services.backend.app.routes.identify.openai_client.moderate_content",
+            mock_openai_moderate,
+        ),
+        patch(
+            "services.backend.app.routes.identify.openai_client.chat_completion",
+            side_effect=[{"content": "RS"}, mock_openai_identify.return_value],
+        ),
+        patch(
+            "services.backend.app.routes.identify.ebird_helper.get_recent_observations",
+            mock_ebird_obs,
+        ),
+        patch("services.backend.app.routes.identify.ebird_helper.get_species_image", mock_image),
+    ):
+        result = await identify_bird(observation)
+
+        # Verify Serbian species identified
+        assert result.top_species is not None
+        assert result.top_species.common_name == "Great Tit"
+        assert result.top_species.confidence == "high"
+        assert result.top_species.image_url == "https://example.com/gretit.jpg"

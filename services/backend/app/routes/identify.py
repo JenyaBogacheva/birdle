@@ -74,7 +74,7 @@ async def extract_region_code(location: str) -> str:
         location: User-provided location
 
     Returns:
-        eBird region code (e.g., 'US-NY', 'AU', 'GB', 'NZ', 'BR', 'IN', etc.)
+        eBird region code (e.g., 'US-NY', 'AU', 'GB', 'NZ', 'BR', 'IN', 'RS', etc.)
 
     Raises:
         HTTPException: If region cannot be determined
@@ -84,12 +84,12 @@ async def extract_region_code(location: str) -> str:
 Location: "{location}"
 
 Rules:
-- Countries: Use 2-letter ISO codes (e.g., AU, GB, CA, NZ, IN, BR, FR, DE, ES, IT,
-  JP, CN, MX, ZA, AR, CL, PE, CO, EC, VE, KE, TZ, UG, ZW, BW, MY, TH, PH, ID)
+- Countries: Use ISO 3166-1 alpha-2 codes (e.g., AU, GB, NZ, IN, BR, RS, PL, etc.)
 - US States: Use format US-XX (e.g., US-NY, US-CA, US-TX)
 - Canadian Provinces: Use format CA-XX (e.g., CA-ON, CA-BC, CA-QC)
 - Australian States: Use format AU-XX (e.g., AU-NSW, AU-VIC, AU-QLD)
-- If ambiguous: return "UNKNOWN"
+- For well-known cities without country: use the most populous/famous location
+- Only return "UNKNOWN" for truly vague inputs (e.g., "downtown", "the park", "somewhere")
 
 Respond with ONLY the region code, nothing else.
 
@@ -98,13 +98,15 @@ Examples:
 - "Sydney, Australia" → AU-NSW
 - "New York" → US-NY
 - "London" → GB
+- "Belgrade" → RS
 - "Mumbai" → IN
 - "Tokyo" → JP
+- "Warsaw" → PL
 - "Cape Town" → ZA
 - "São Paulo" → BR
 - "Auckland" → NZ
 - "Paris" → FR
-- "Berlin" → DE"""
+- "downtown" → UNKNOWN"""
 
     try:
         response = await openai_client.chat_completion(
