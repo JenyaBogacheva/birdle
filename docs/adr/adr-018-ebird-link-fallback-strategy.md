@@ -1,0 +1,6 @@
+# ADR-018: eBird Link Fallback Strategy
+
+- **Status**: Accepted
+- **Context**: Not all identified species appear in recent regional eBird observations (e.g., rare species, identification errors). When species code lookup fails, we need a fallback to still provide useful eBird links. Options: (1) return no link, (2) link to eBird homepage, (3) link to eBird search results for the species name, or (4) always require species in regional data. No link is poor UX. Homepage isn't helpful. Restricting to regional data limits identification capability.
+- **Decision**: Implement a two-tier linking strategy: (1) If species found in eBird data, use direct species page link (`https://ebird.org/species/{code}`). (2) If not found, use eBird search link (`https://ebird.org/explore?q={name}`). This ensures users always get a working link to relevant eBird content.
+- **Consequences**: Users always receive actionable eBird links even for edge cases. The fallback search maintains utility when direct links aren't available. This balances flexibility (allowing identification outside regional data) with usefulness (always providing eBird resources). For MVP, this approach maximizes user value without overconstraining the LLM identification capabilities.

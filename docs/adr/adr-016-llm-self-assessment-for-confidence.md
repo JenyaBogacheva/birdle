@@ -1,0 +1,6 @@
+# ADR-016: LLM Self-Assessment for Identification Confidence
+
+- **Status**: Accepted
+- **Context**: Bird identification confidence can vary based on description quality, species distinctiveness, and regional prevalence. We needed to communicate confidence to users. Options: (1) rule-based heuristics (keyword matching, observation count thresholds), (2) ML model scoring, or (3) LLM self-assessment. Rule-based is simple but inflexible. ML models require training data and infrastructure. LLM self-assessment leverages the reasoning model's understanding of the identification.
+- **Decision**: Instruct OpenAI to provide confidence levels (high/medium/low) as part of the structured JSON response, with clear guidelines: HIGH for distinctive features + common in region, MEDIUM for some ambiguity, LOW for vague descriptions. The LLM considers description quality, species distinctiveness, and eBird regional data when assessing confidence.
+- **Consequences**: Confidence levels are contextually aware and improve as the LLM improves, without code changes. The reasoning is transparent (included in response) so users understand why confidence is assigned. No separate ML model or complex heuristics needed. The tradeoff is relying on LLM consistency, but structured prompts with examples mitigate this. For MVP, this provides good user experience with minimal complexity.

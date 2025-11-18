@@ -1,0 +1,6 @@
+# ADR-017: Structured JSON Responses from OpenAI
+
+- **Status**: Accepted
+- **Context**: OpenAI responses needed to be parsed reliably to extract species names, confidence levels, reasoning, and clarification questions. Options were: (1) natural language parsing with regex/string manipulation, (2) JSON mode with schema validation, or (3) function calling. Natural language parsing is brittle and error-prone. JSON mode is explicit and reliable. Function calling is more complex for our use case.
+- **Decision**: Use OpenAI's JSON mode (`response_format: {"type": "json_object"}`) with clear schema definitions in the system prompt. The response structure includes: `message` (user-facing text), `top_species` (identification details), and `clarification` (optional follow-up question). All fields are explicitly defined with examples in the prompt.
+- **Consequences**: We get reliable, parseable responses with proper validation via Pydantic models. JSON parsing errors are handled gracefully with logging. The structured format makes frontend integration straightforward with type-safe TypeScript interfaces. The system prompt is longer but provides clear contracts. For MVP, this eliminates parsing ambiguity and ensures data consistency across the stack.

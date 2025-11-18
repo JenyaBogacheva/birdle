@@ -1,0 +1,6 @@
+# ADR-014: MCP Stdio Communication for eBird Integration
+
+- **Status**: Accepted
+- **Context**: We needed to integrate eBird API v2 for regional bird observation data. The choice was between direct HTTP calls to eBird API or wrapping it in an MCP (Model Context Protocol) server. Direct API calls would be simpler with fewer moving parts, while MCP provides a standardized protocol for LLM tool usage and better separation of concerns. The vision document specified MCP architecture, and we needed to decide on the implementation approach.
+- **Decision**: Implement an eBird MCP server using stdio communication with proper JSON-RPC initialization handshake, wrapping eBird API v2 endpoints. The server provides three tools: `get_recent_observations`, `get_species_sightings`, and `search_species_by_name`.
+- **Consequences**: We gain a clean abstraction layer that isolates eBird-specific logic, making it easier to add more tools in the future. The MCP protocol provides standardized tool discovery and calling conventions that work well with LLM workflows. The tradeoff is managing an additional subprocess and implementing the JSON-RPC protocol correctly (initialization, notifications, tool calls). For the MVP, this overhead is acceptable given the architectural clarity and future extensibility it provides.
