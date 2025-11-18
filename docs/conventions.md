@@ -57,6 +57,7 @@ cd /mnt/nfs/users/jenya/birds && source .venv/bin/activate && (unset VIRTUAL_ENV
 - ❌ **NEVER** skip pre-commit hooks (`--no-verify`).
 - ❌ **NEVER** commit with failing tests.
 - ❌ **NEVER** bypass CI checks to merge.
+- ❌ **NEVER** merge directly to main - ALWAYS create a Pull Request for review.
 
 ## Do
 

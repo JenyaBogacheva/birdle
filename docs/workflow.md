@@ -41,12 +41,15 @@ After coding finishes:
 - [ ] Share the results and **wait for confirmation** that the iteration is accepted.
 - [ ] Update `@tasklist.md`: mark tasks done, refresh the progress table, and add any notes.
 
-### 4. Commit
+### 4. Commit & PR
 When confirmation arrives:
 - [ ] Create a dedicated commit summarising the iteration on the feature branch.
 - [ ] Suggested format: `feat: iteration X — <short goal>` (adjust type if needed).
 - [ ] Mention tests or validation performed in the commit body.
-- [ ] After review, merge the feature branch to main (no force push to main).
+- [ ] **Create a Pull Request** from the feature branch to main
+- [ ] Wait for PR review and approval
+- [ ] After approval, merge the PR to main (no force push to main)
+- [ ] **NEVER merge directly to main without a PR**
 
 ### 5. Transition
 Before starting the next iteration:
