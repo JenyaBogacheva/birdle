@@ -39,4 +39,3 @@ Requirements for the plan:
 After generating docs/tasklist.md:
 
 - Save this prompt (Prompt 4) into the project's prompt session / prompt folder so it becomes part of the reusable workflow.
-

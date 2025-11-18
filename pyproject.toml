@@ -22,6 +22,7 @@ pytest-asyncio = "^0.24.0"
 black = "^24.10.0"
 ruff = "^0.7.0"
 mypy = "^1.13.0"
+pre-commit = "^4.4.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -48,4 +49,3 @@ disallow_untyped_defs = false
 [tool.pytest.ini_options]
 testpaths = ["services/backend/tests"]
 asyncio_mode = "auto"
-

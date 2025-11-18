@@ -1,0 +1,46 @@
+repos:
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+
+  # Python backend checks
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^services/
+      - id: ruff-format
+        files: ^services/
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        files: ^services/backend/app/
+        args: [--ignore-missing-imports]
+        additional_dependencies:
+          - pydantic>=2.0
+          - types-requests
+
+  # Frontend checks
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.17.0
+    hooks:
+      - id: eslint
+        files: ^frontend/src/.*\.[jt]sx?$
+        types: [file]
+        additional_dependencies:
+          - eslint@8.57.1
+          - '@typescript-eslint/eslint-plugin@7.13.1'
+          - '@typescript-eslint/parser@7.13.1'
+          - eslint-plugin-react-hooks@4.6.2
+          - eslint-plugin-react-refresh@0.4.7
+          - typescript@5.2.2

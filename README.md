@@ -1,125 +1,88 @@
-# Bird-ID MVP
+# Birdle 🐦✨
 
-LLM-powered bird identification assistant that helps users identify bird species from plain-text descriptions.
+AI-powered bird identification • describe a bird, get instant results • React + FastAPI + OpenAI
 
-## Overview
+## Setup
 
-This application combines:
-- **React + Vite** frontend with Tailwind CSS
-- **FastAPI** backend with integrated MCP helpers for eBird API
-- **OpenAI ChatGPT** (GPT-4o/GPT-4.1) for natural language understanding
-- Linear request flow: SPA ➝ FastAPI ➝ LLM/eBird ➝ Response
+### Backend
 
-## Quick Start
+```bash
+# Install dependencies
+poetry install
 
-### Prerequisites
+# Run the API server
+poetry run uvicorn services.backend.app.main:app --reload --host 0.0.0.0 --port 8000
+```
 
-- **Node.js** 18+ with pnpm installed (`npm install -g pnpm`)
-- **Python** 3.11+ with Poetry installed (`pip install poetry`)
-- **OpenAI API key**
-- **eBird API token** (optional for MVP iteration 1)
+### Frontend
 
-### Setup
+```bash
+cd frontend
 
-1. **Clone and install dependencies**:
-   ```bash
-   # Install Python dependencies
-   poetry install
-   
-   # Install frontend dependencies
-   pnpm install
-   ```
+# Install dependencies
+npm install
 
-2. **Configure environment**:
-   ```bash
-   # Copy example environment file
-   cp .env.example .env.local
-   
-   # Edit .env.local and add your API keys
-   ```
+# Run dev server
+npm run dev
+```
 
-3. **Run locally**:
-   ```bash
-   # Terminal 1: Start backend (from project root)
-   poetry run uvicorn services.backend.app.main:app --reload --port 8000
-   
-   # Terminal 2: Start frontend (from project root)
-   cd frontend && pnpm dev
-   ```
+### Pre-commit Hooks
 
-4. **Access the app**:
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:8000
-   - API docs: http://localhost:8000/docs
+```bash
+# Install pre-commit hooks (run once)
+poetry run pre-commit install
+
+# Manually run on all files
+poetry run pre-commit run --all-files
+```
+
+The pre-commit hooks will automatically run:
+- Trailing whitespace removal
+- End of file fixer
+- YAML validation
+- Ruff linting & formatting (Python)
+- MyPy type checking (Python)
+- ESLint (TypeScript/React)
+
+## Environment Variables
+
+Copy `.env.example` files and configure:
+
+**Backend:** `configs/settings.example.env` → `.env.local`
+**Frontend:** `frontend/.env.example` → `frontend/.env.local`
+
+## Development
+
+See `docs/workflow.md` for the iteration-based development process.
 
 ## Project Structure
 
 ```
-birds/
+birdle/
 ├── frontend/              # React + Vite SPA
-│   ├── public/
-│   └── src/
-│       ├── components/
-│       └── pages/
+│   ├── src/
+│   │   ├── components/   # UI components
+│   │   ├── pages/        # Page components
+│   │   ├── api/          # API client
+│   │   └── types/        # TypeScript types
+│   └── package.json
 ├── services/
 │   └── backend/
 │       └── app/
-│           ├── main.py    # FastAPI entry point
-│           ├── routes/    # API endpoints
-│           ├── schemas/   # Pydantic models
-│           └── mcp/       # eBird MCP helpers
-├── configs/
-│   └── prompts/           # LLM prompt templates
-├── docs/
-│   ├── vision.md          # Technical vision (READ THIS FIRST)
-│   ├── tasklist.md        # Iteration plan
-│   ├── conventions.md     # Coding standards
-│   ├── workflow.md        # Development process
-│   └── adr/               # Architecture Decision Records
-├── .env.example           # Environment variables template
-├── pyproject.toml         # Python dependencies (Poetry)
-└── pnpm-workspace.yaml    # pnpm workspace config
+│           ├── main.py   # FastAPI entry
+│           ├── routes/   # API endpoints
+│           ├── schemas/  # Pydantic models
+│           └── mcp/      # eBird helpers
+├── configs/              # Configuration templates
+├── docs/                 # Documentation
+└── pyproject.toml        # Python dependencies
 ```
-
-## Documentation
-
-- **[Vision](docs/vision.md)** - Authoritative technical blueprint
-- **[Task List](docs/tasklist.md)** - Iteration plan and progress
-- **[Conventions](docs/conventions.md)** - Development standards
-- **[Workflow](docs/workflow.md)** - Iteration process
-- **[ADRs](docs/adr/)** - Architecture decisions
-
-## Development Principles
-
-- **MVP-first**: Ship the smallest useful slice
-- **KISS**: Straightforward code, familiar libraries
-- **YAGNI**: Defer features until proven necessary
-- **Iterate**: Thin vertical slices with fast feedback
 
 ## Current Status
 
-**Phase**: Foundation setup complete
-**Next**: Iteration 1 - Stubbed end-to-end flow
+✅ **Iteration 1:** Stubbed end-to-end flow complete
+- Backend API with `/health` and `/api/identify` endpoints
+- React frontend with form and results display
+- Full roundtrip tested
 
-See [tasklist.md](docs/tasklist.md) for detailed iteration plan.
-
-## Tech Stack
-
-- **Frontend**: React 18, Vite, TypeScript, Tailwind CSS
-- **Backend**: Python 3.11+, FastAPI, Pydantic, uvicorn
-- **AI**: OpenAI ChatGPT API (GPT-4o/GPT-4.1)
-- **Data**: eBird API via MCP helpers
-- **Package Management**: pnpm (frontend), Poetry (backend)
-
-## Deployment
-
-- **Backend**: Fly.io (Docker container)
-- **Frontend**: Vercel (static hosting)
-- Manual CLI deploys initially; CI/CD to be added later
-
-See [ADR-005](docs/adr/adr-005-deployment-strategy.md) for details.
-
-## License
-
-Private project - All rights reserved
-
+🚧 **Next:** Iteration 2 - eBird MCP integration

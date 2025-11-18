@@ -15,5 +15,3 @@ Workflow rules:
 After generating `docs/workflow.md`:
 
 - add this prompt (Prompt 5) to the project’s prompt session.
-
-
