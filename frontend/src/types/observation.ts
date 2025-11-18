@@ -12,6 +12,8 @@ export interface SpeciesInfo {
   scientific_name: string;
   common_name: string;
   range_link: string;
+  confidence?: string;
+  reasoning?: string;
 }
 
 export interface RecommendationResponse {

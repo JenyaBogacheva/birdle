@@ -1,0 +1,13 @@
+I observed a bird with the following description:
+
+**Description:** {description}
+
+{location_info}
+{time_info}
+
+Here are the recent bird observations in this region from eBird:
+
+**Regional Context:**
+{ebird_context}
+
+Based on this information, please help me identify this bird. Provide your best match with confidence level and reasoning. If you need more information, ask a specific clarifying question.

@@ -52,9 +52,22 @@ export function ResultPanel({ result, error }: ResultPanelProps) {
 
       {result.top_species && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h4 className="text-md font-semibold text-blue-900 mb-3">
-            Top Match
-          </h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-md font-semibold text-blue-900">Top Match</h4>
+            {result.top_species.confidence && (
+              <span
+                className={`px-2 py-1 rounded-full text-xs font-medium ${
+                  result.top_species.confidence === 'high'
+                    ? 'bg-green-100 text-green-800'
+                    : result.top_species.confidence === 'medium'
+                    ? 'bg-yellow-100 text-yellow-800'
+                    : 'bg-orange-100 text-orange-800'
+                }`}
+              >
+                {result.top_species.confidence.toUpperCase()} CONFIDENCE
+              </span>
+            )}
+          </div>
           <dl className="space-y-2">
             <div>
               <dt className="text-sm font-medium text-blue-800">
@@ -72,6 +85,16 @@ export function ResultPanel({ result, error }: ResultPanelProps) {
                 {result.top_species.scientific_name}
               </dd>
             </div>
+            {result.top_species.reasoning && (
+              <div>
+                <dt className="text-sm font-medium text-blue-800">
+                  Reasoning
+                </dt>
+                <dd className="text-sm text-blue-900">
+                  {result.top_species.reasoning}
+                </dd>
+              </div>
+            )}
             <div>
               <a
                 href={result.top_species.range_link}

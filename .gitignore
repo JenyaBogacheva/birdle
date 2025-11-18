@@ -53,3 +53,4 @@ dist-ssr/
 # Logs
 logs
 *.log
+frontend/.vite/

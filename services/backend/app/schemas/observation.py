@@ -21,6 +21,8 @@ class SpeciesInfo(BaseModel):
     scientific_name: str
     common_name: str
     range_link: str
+    confidence: Optional[str] = Field(None, description="Confidence level: high, medium, or low")
+    reasoning: Optional[str] = Field(None, description="Reasoning for the identification")
 
 
 class RecommendationResponse(BaseModel):
