@@ -63,6 +63,7 @@ Before starting the next iteration:
 - ❌ Sneak in changes from future iterations.
 - ❌ Skip alignment with `@vision.md` / `@conventions.md`.
 - ❌ Merge or push without a reviewed commit.
+- ❌ **Merge directly to main - ALWAYS use Pull Requests**
 
 **✅ Always do**
 - ✅ Create a feature branch for each iteration.
