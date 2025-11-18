@@ -1,6 +1,30 @@
-# Birdle 🐦✨
+# Bird-ID MVP 🐦✨
 
-AI-powered bird identification • describe a bird, get instant results • React + FastAPI + OpenAI
+AI-powered bird identification using natural language • Describe what you saw, get instant species matches with confidence levels
+
+---
+
+## 🚀 Live Demo
+
+**Try it here:** [Add URL after deployment]
+
+**Quick test:** "I saw a small red bird with a crest in New York"
+
+See `DEMO.md` for more test cases and what to expect.
+
+---
+
+## 🎯 What This Is
+
+An MVP demonstrating LLM-powered bird identification that:
+- ✅ Takes natural language descriptions
+- ✅ Queries live eBird regional data via MCP
+- ✅ Uses GPT-4o-mini for reasoning and confidence assessment
+- ✅ Returns ranked species with high-quality images
+- ✅ Works globally (all continents)
+- ✅ Handles uncertainty gracefully with clarification requests
+
+Built in 4 iterations following MVP-first principles.
 
 ## Setup
 
@@ -78,11 +102,78 @@ birdle/
 └── pyproject.toml        # Python dependencies
 ```
 
-## Current Status
+## 📊 Quality Metrics
 
-✅ **Iteration 1:** Stubbed end-to-end flow complete
-- Backend API with `/health` and `/api/identify` endpoints
-- React frontend with form and results display
-- Full roundtrip tested
+- ✅ **44 passing tests** (unit + integration)
+- ✅ **Full type checking** (TypeScript + mypy)
+- ✅ **Structured logging** (latency tracking, token usage)
+- ✅ **Error handling** (retries, timeouts, fallbacks)
+- ✅ **Content moderation** (OpenAI moderation API)
+- ✅ **Global coverage** (eBird regions worldwide)
 
-🚧 **Next:** Iteration 2 - eBird MCP integration
+## 🏗️ Architecture
+
+```
+User Input (React SPA)
+    ↓
+FastAPI Backend
+    ↓
+├─→ Content Moderation (OpenAI)
+├─→ eBird MCP Server (regional bird data)
+└─→ GPT-4o-mini (identification + confidence)
+    ↓
+Response with species, images, reasoning
+```
+
+**Key principles:**
+- Stateless design (scales horizontally)
+- Linear request flow (no background workers)
+- In-memory only (no database for MVP)
+- One retry policy (transient errors)
+- Graceful degradation (partial results on failures)
+
+## 🛠️ Tech Stack
+
+**Frontend:**
+- React 18 + Vite (fast dev + build)
+- TypeScript (type safety)
+- Tailwind CSS (rapid styling)
+
+**Backend:**
+- FastAPI (async Python, OpenAPI docs)
+- Poetry (dependency management)
+- MCP (Model Context Protocol for eBird)
+- Pydantic (data validation)
+
+**AI & Data:**
+- OpenAI GPT-4o-mini (cost-effective reasoning)
+- eBird API v2 (Cornell Lab, real-time observations)
+- Macaulay Library (Cornell Lab, species images)
+
+**Why these choices:**
+- Familiar stack → fast development
+- Minimal abstractions → easy to understand
+- Free/cheap APIs → low-cost MVP
+- Standard protocols → maintainable
+
+## 🚢 Deployment
+
+See `docs/deployment-guide.md` for step-by-step instructions.
+
+**Quick summary:**
+1. Deploy backend to Render (15 min)
+2. Deploy frontend to Vercel (10 min)
+3. Test with demo cases (10 min)
+
+Total: ~45 minutes to go live on free tiers.
+
+## 📈 Current Status
+
+| Iteration | Feature | Status |
+|-----------|---------|--------|
+| 1 | End-to-end stub | ✅ Complete |
+| 2 | eBird + OpenAI integration | ✅ Complete |
+| 3 | Multi-species + images | ✅ Complete |
+| 4 | Resilience + observability | ✅ Complete |
+
+**Ready for:** Production deployment and user testing

@@ -1,0 +1,24 @@
+# Render Blueprint for Bird-ID MVP Backend
+# This file enables one-click deployment to Render
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: bird-id-api
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: cd services/backend && poetry install --no-dev
+    startCommand: cd services/backend && poetry run uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: OPENAI_API_KEY
+        sync: false  # User will set this manually
+      - key: EBIRD_TOKEN
+        sync: false  # User will set this manually
+      - key: FRONTEND_BASE_URL
+        value: "*"  # Will be updated after frontend deployment
+      - key: DEBUG
+        value: false
+    healthCheckPath: /health
