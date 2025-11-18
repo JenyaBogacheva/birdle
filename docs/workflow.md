@@ -1,0 +1,108 @@
+# Iteration Workflow
+
+- Plan source: `@tasklist.md`
+- Technical vision: `@vision.md`
+- Coding rules: `@conventions.md`
+
+## Iteration Flow
+
+### 1. Planning
+Before touching the code:
+- [ ] Read the current iteration goals in `@tasklist.md`.
+- [ ] Re-check principles from `@vision.md` and `@conventions.md`.
+- [ ] Draft a concrete technical proposal with code sketches or pseudo-code if helpful.
+- [ ] Share the proposal and **wait for approval** before starting implementation.
+
+**Proposal template**
+
+```
+## Iteration X — <title>
+
+### Solution
+- Backend: <summary + snippets>
+- Frontend: <summary + snippets>
+- Config: <env or prompt changes>
+
+### Test Plan
+- <how we will prove it works>
+```
+
+### 2. Implementation
+Only after approval:
+- [ ] Modify or add files exactly as approved.
+- [ ] Follow naming, structure, and conventions from `@conventions.md`.
+- [ ] Keep changes scoped to the current iteration — no features from future iterations.
+- [ ] Prepare testing notes while coding.
+
+### 3. Completion
+After coding finishes:
+- [ ] Run or document the agreed test plan; capture outcomes.
+- [ ] Share the results and **wait for confirmation** that the iteration is accepted.
+- [ ] Update `@tasklist.md`: mark tasks done, refresh the progress table, and add any notes.
+
+### 4. Commit
+When confirmation arrives:
+- [ ] Create a dedicated commit summarising the iteration.
+- [ ] Suggested format: `feat: iteration X — <short goal>` (adjust type if needed).
+- [ ] Mention tests or validation performed in the commit body.
+
+### 5. Transition
+Before starting the next iteration:
+- [ ] Ask for approval to move forward.
+- [ ] Confirm the next iteration’s scope and repeat the loop.
+
+## Guardrails
+
+**❌ Never do**
+- ❌ Start coding without an approved plan.
+- ❌ Sneak in changes from future iterations.
+- ❌ Skip alignment with `@vision.md` / `@conventions.md`.
+- ❌ Merge or push without a reviewed commit.
+
+**✅ Always do**
+- ✅ Keep communication transparent and written.
+- ✅ Tie every change back to the iteration goal.
+- ✅ Keep work minimal, reversible, and testable.
+
+## Communication Templates
+
+**Iteration kickoff**
+
+```
+## Planning iteration X — <title>
+
+### Solution draft
+- ...
+
+### Test plan
+- ...
+
+Ready to implement once approved?
+```
+
+**Iteration completion**
+
+```
+## Iteration X complete
+
+### Test evidence
+- ...
+
+Updated `@tasklist.md`. Ready for review?
+```
+
+**Transition request**
+
+```
+Iteration X accepted. May I begin planning iteration X+1?
+```
+
+## Success Criteria
+An iteration counts as done when:
+- ✅ Plan was approved upfront.
+- ✅ Implementation matches `@conventions.md`.
+- ✅ Tests ran and results were shared.
+- ✅ `@tasklist.md` reflects the new status.
+- ✅ A dedicated commit was created.
+- ✅ Next iteration start was confirmed.
+

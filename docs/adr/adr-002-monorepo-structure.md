@@ -1,0 +1,7 @@
+# ADR-002: Maintain a Single Monorepo for Frontend, Backend, and MCP
+
+- **Status**: Accepted
+- **Context**: The MVP must evolve quickly with tight coordination between the React frontend, FastAPI backend, and MCP helpers. Splitting components into multiple repositories would slow iteration, complicate dependency sharing, and increase deployment friction.
+- **Decision**: Keep all components in a monorepo rooted at `birds/`, with `frontend/` and `services/backend/` as top-level projects. The eBird MCP helpers are implemented as a module within the FastAPI backend at `services/backend/app/mcp/` to maintain the single-service architecture. Share Python dependencies via a root `pyproject.toml` managed by Poetry, and isolate frontend dependencies with pnpm. Store shared configurations (`configs/`), documentation (`vision.md`, ADRs), and CI workflows at the repository root.
+- **Consequences**: Coordinated changes remain simple—single PRs can touch all layers, shared utilities are easy to manage, and deployment pipelines can treat the codebase as one unit. The MCP helpers share the same FastAPI process, eliminating inter-service coordination. The tradeoff is a need for lightweight tooling (CI filters, lint configs) to prevent cross-project noise, but this overhead is minimal compared to maintaining multiple repos.
+
