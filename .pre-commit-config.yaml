@@ -25,10 +25,12 @@ repos:
     hooks:
       - id: mypy
         files: ^services/backend/app/
-        args: [--ignore-missing-imports]
+        args: [--ignore-missing-imports, --explicit-package-bases]
+        pass_filenames: false
         additional_dependencies:
           - pydantic>=2.0
           - types-requests
+        entry: bash -c 'cd services/backend && mypy app --ignore-missing-imports'
 
   # Frontend checks
   - repo: https://github.com/pre-commit/mirrors-eslint

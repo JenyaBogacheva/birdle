@@ -1,4 +1,4 @@
-# Deployment Guide — Bird-ID MVP
+# Deployment Guide — Birdle AI
 
 **Goal:** Deploy backend + frontend to free hosting with minimal config.
 

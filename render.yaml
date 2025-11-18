@@ -1,10 +1,10 @@
-# Render Blueprint for Bird-ID MVP Backend
+# Render Blueprint for Birdle AI Backend
 # This file enables one-click deployment to Render
 # Docs: https://render.com/docs/blueprint-spec
 
 services:
   - type: web
-    name: bird-id-api
+    name: birdle-ai-api
     runtime: python
     plan: free
     region: oregon

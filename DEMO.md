@@ -1,4 +1,4 @@
-# Bird-ID MVP Demo Guide
+# 🦜 Birdle AI Demo Guide ✨🦩
 
 🔗 **Live Demo:** https://birdle-ai.vercel.app/
 

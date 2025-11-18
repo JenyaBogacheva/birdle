@@ -1,4 +1,4 @@
-# Bird-ID MVP Work Plan
+# 🦜 Birdle AI Work Plan ✨🦩
 
 - Vision reference: `@vision.md`
 - Delivery conventions: `@conventions.md`
