@@ -16,7 +16,7 @@ def test_health_endpoint():
     data = response.json()
     assert data["status"] == "ok"
     assert "timestamp" in data
-    assert data["app_name"] == "Bird-ID MVP"
+    assert data["app_name"] == "Birdle AI"
 
 
 def test_identify_endpoint_returns_stubbed_response():

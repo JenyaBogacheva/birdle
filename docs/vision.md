@@ -1,4 +1,4 @@
-## Bird-ID MVP Vision
+## 🦜 Birdle AI Vision ✨🦩
 
 ### 1. Technologies
 - **Frontend**: React + Vite (TypeScript) with Tailwind for quick styling.

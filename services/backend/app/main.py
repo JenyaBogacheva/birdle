@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="Bird-ID MVP API",
+    title="Birdle AI API",
     description="LLM-powered bird identification assistant",
     version="0.1.0",
     lifespan=lifespan,

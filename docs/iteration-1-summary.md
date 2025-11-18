@@ -38,7 +38,7 @@ Bootstrap a usable round-trip with stubbed data to validate the architecture and
 **Health Check:**
 ```bash
 $ curl http://localhost:8000/health
-{"status":"ok","timestamp":"2025-11-18T13:06:23.973707","app_name":"Bird-ID MVP"}
+{"status":"ok","timestamp":"2025-11-18T13:06:23.973707","app_name":"Birdle AI"}
 ```
 ✅ Status: 200 OK
 

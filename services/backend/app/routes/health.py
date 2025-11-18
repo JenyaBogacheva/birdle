@@ -7,6 +7,8 @@ from datetime import datetime
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+from services.backend.app.settings import settings
+
 router = APIRouter(tags=["health"])
 
 
@@ -24,5 +26,5 @@ async def health_check() -> HealthResponse:
     return HealthResponse(
         status="ok",
         timestamp=datetime.utcnow().isoformat(),
-        app_name="Bird-ID MVP",
+        app_name=settings.app_name,
     )

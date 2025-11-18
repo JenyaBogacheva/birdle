@@ -1,4 +1,4 @@
-# Bird-ID MVP 🐦✨
+# 🦜 Birdle AI ✨🦩
 
 **Full-stack AI application built from scratch in ~10 days** • Natural language → GPT-4o-mini → Regional eBird data → Ranked species with images
 

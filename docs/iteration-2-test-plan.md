@@ -13,7 +13,7 @@ EBIRD_TOKEN=your-actual-ebird-api-token
 
 # Configuration
 FRONTEND_BASE_URL=http://localhost:5173
-APP_NAME=Bird-ID MVP
+APP_NAME=Birdle AI
 DEBUG=true
 ```
 

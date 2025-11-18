@@ -1,7 +1,7 @@
 ---
 alwaysApply: true
 ---
-# Development Conventions — Bird-ID MVP
+# Development Conventions — Birdle AI
 
 `@docs/vision.md` is the authoritative blueprint. Update it first, then code.
 

@@ -6,7 +6,7 @@
 
 ## Overview
 
-Transformed the UI from formal/corporate aesthetic to a fun, retro cartoonish Gen Z vibe. Rebranded from "Bird-ID MVP" to "birdle-ai" with vibrant colors, casual tone, and playful interactions.
+Transformed the UI from formal/corporate aesthetic to a fun, retro cartoonish Gen Z vibe. Rebranded to "🦜 Birdle AI ✨🦩" with vibrant colors, casual tone, and playful interactions.
 
 ## Goals
 

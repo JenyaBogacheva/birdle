@@ -1,4 +1,4 @@
-# Development Conventions — Bird-ID MVP
+# Development Conventions — Birdle AI
 
 `@vision.md` is the authoritative blueprint. Update it first, then code.
 
