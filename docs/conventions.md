@@ -50,6 +50,8 @@ cd /mnt/nfs/users/jenya/birds && source .venv/bin/activate && (unset VIRTUAL_ENV
 
 - ✅ Run pre-commit hooks before every commit.
 - ✅ All tests must pass before committing or merging.
+- ✅ Test frontend builds locally: `cd frontend && npm run build`
+- ✅ Test backend type checking: `poetry run mypy services/backend/app --ignore-missing-imports`
 - ❌ **NEVER** skip pre-commit hooks (`--no-verify`).
 - ❌ **NEVER** commit with failing tests.
 - ❌ **NEVER** bypass CI checks to merge.
