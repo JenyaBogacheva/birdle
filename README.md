@@ -6,9 +6,11 @@ AI-powered bird identification using natural language • Describe what you saw,
 
 ## 🚀 Live Demo
 
-**Try it here:** [Add URL after deployment]
+**Try it here:** https://birdle-ai.vercel.app/
 
 **Quick test:** "I saw a small red bird with a crest in New York"
+
+**Backend API:** https://bird-id-api.onrender.com
 
 See `DEMO.md` for more test cases and what to expect.
 

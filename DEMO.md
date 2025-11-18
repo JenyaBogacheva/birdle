@@ -1,6 +1,9 @@
 # Bird-ID MVP Demo Guide
 
-🔗 **Live Demo:** [Will be added after deployment]
+🔗 **Live Demo:** https://birdle-ai.vercel.app/
+
+**Backend API:** https://bird-id-api.onrender.com
+**Health Check:** https://bird-id-api.onrender.com/health
 
 ---
 
