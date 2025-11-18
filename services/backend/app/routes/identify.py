@@ -40,6 +40,11 @@ async def identify_bird(observation: ObservationInput) -> RecommendationResponse
         clarification=None,
     )
 
-    logger.info(f"Returning stubbed response: species={stubbed_response.top_species.common_name}")
+    if stubbed_response.top_species:
+        logger.info(
+            f"Returning stubbed response: species={stubbed_response.top_species.common_name}"
+        )
+    else:
+        logger.info("Returning stubbed response: no species identified")
 
     return stubbed_response
