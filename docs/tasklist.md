@@ -7,7 +7,7 @@
 
 | Iteration | Goal / Feature | Status | Icon | Notes |
 | --- | --- | --- | --- | --- |
-| 1 | Stubbed end-to-end flow | Planned | ⏳ | Prepare demo path |
+| 1 | Stubbed end-to-end flow | Complete | ✅ | Backend tested, frontend ready |
 | 2 | eBird MCP integration | Planned | ⏳ | Awaiting Iteration 1 |
 | 3 | Ranking + richer output | Planned | ⏳ | Pending MCP data |
 | 4 | Resilience & observability | Planned | ⏳ | |
@@ -20,16 +20,26 @@
 
 ## Iteration Backlog
 
-### Iteration 1 — Stubbed end-to-end flow
+### Iteration 1 — Stubbed end-to-end flow ✅
 **Goal:** Bootstrap a usable round-trip with stubbed data.  
 **Test:** Submit a description ➝ receive the canned species payload in the UI.
 
-- [ ] Scaffold FastAPI `/api/identify` endpoint returning a fixed species payload.
-- [ ] Build React form with text input and result panel wired to the endpoint.
-- [ ] Configure shared types/schema between frontend and backend for the stub response.
-- [ ] Add a smoke test (manual or automated) covering a full roundtrip through the stub.
+- [x] Scaffold FastAPI `/api/identify` endpoint returning a fixed species payload.
+- [x] Build React form with text input and result panel wired to the endpoint.
+- [x] Configure shared types/schema between frontend and backend for the stub response.
+- [x] Add a smoke test (manual or automated) covering a full roundtrip through the stub.
 
 **Result:** Users can try the interface and see a representative response.
+
+**Completion Notes:**
+- Backend fully implemented and tested with curl
+- Health endpoint: ✅ Returns proper status
+- Identify endpoint: ✅ Returns stubbed Northern Cardinal response
+- Frontend code complete with React + Vite + Tailwind
+- Pydantic and TypeScript schemas aligned
+- **Full UI roundtrip tested in browser: ✅ CONFIRMED**
+- User submitted bird description → received stubbed response in UI
+- Both backend (port 8000) and frontend (port 5173) running successfully
 
 ### Iteration 2 — eBird MCP integration
 **Goal:** Replace the stub with live data from the eBird MCP helper.  

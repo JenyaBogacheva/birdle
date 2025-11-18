@@ -29,6 +29,7 @@ Before touching the code:
 
 ### 2. Implementation
 Only after approval:
+- [ ] Create a feature branch for the iteration: `feat/iteration-X-<short-description>`
 - [ ] Modify or add files exactly as approved.
 - [ ] Follow naming, structure, and conventions from `@conventions.md`.
 - [ ] Keep changes scoped to the current iteration — no features from future iterations.
@@ -42,9 +43,10 @@ After coding finishes:
 
 ### 4. Commit
 When confirmation arrives:
-- [ ] Create a dedicated commit summarising the iteration.
+- [ ] Create a dedicated commit summarising the iteration on the feature branch.
 - [ ] Suggested format: `feat: iteration X — <short goal>` (adjust type if needed).
 - [ ] Mention tests or validation performed in the commit body.
+- [ ] After review, merge the feature branch to main (no force push to main).
 
 ### 5. Transition
 Before starting the next iteration:
@@ -60,6 +62,7 @@ Before starting the next iteration:
 - ❌ Merge or push without a reviewed commit.
 
 **✅ Always do**
+- ✅ Create a feature branch for each iteration.
 - ✅ Keep communication transparent and written.
 - ✅ Tie every change back to the iteration goal.
 - ✅ Keep work minimal, reversible, and testable.
