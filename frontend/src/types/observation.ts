@@ -19,4 +19,3 @@ export interface RecommendationResponse {
   top_species?: SpeciesInfo;
   clarification?: string;
 }
-

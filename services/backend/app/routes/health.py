@@ -1,7 +1,9 @@
 """
 Health check endpoint.
 """
+
 from datetime import datetime
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -24,4 +26,3 @@ async def health_check() -> HealthResponse:
         timestamp=datetime.utcnow().isoformat(),
         app_name="Bird-ID MVP",
     )
-

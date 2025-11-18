@@ -131,4 +131,3 @@ Principles:
 - `.env.example` documents required keys; copy to `.env.local` for local runs.
 - Prompts stored as plain text under `configs/prompts/` and loaded at startup.
 - Frontend reads `VITE_API_BASE_URL` from `.env.local` or hosting UI.
-

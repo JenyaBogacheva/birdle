@@ -36,11 +36,26 @@ alwaysApply: true
 - ❌ Don't hardcode secrets, tokens, or environment-specific paths.
 - ✅ Keep `.env.example` current when adding required keys.
 
+## Environment Setup
+
+If the virtual environment appears broken, reinitialize it:
+```bash
+cd /mnt/nfs/users/jenya/birds && source .venv/bin/activate && (unset VIRTUAL_ENV && poetry -v install) && pre-commit install
+```
+
 ## Error Handling & Logging (`@docs/vision.md` §6–7)
 
 - ✅ Prefer explicit control flow over clever abstractions; bubble unexpected errors.
 - ✅ Log with Python `logging` (info for call metadata, warning for retries/failures); capture request, latency, and token metrics only.
 - ✅ Let React error boundaries surface frontend issues; show actionable messages to users.
+
+## Code Quality & Testing
+
+- ✅ Run pre-commit hooks before every commit.
+- ✅ All tests must pass before committing or merging.
+- ❌ **NEVER** skip pre-commit hooks (`--no-verify`).
+- ❌ **NEVER** commit with failing tests.
+- ❌ **NEVER** bypass CI checks to merge.
 
 ## Do
 
@@ -55,4 +70,3 @@ alwaysApply: true
 - ❌ Don't swap frameworks or add competing build tooling.
 - ❌ Don't create excessive configuration files or global state.
 - ❌ Don't expand testing beyond the MVP flow without vision approval.
-

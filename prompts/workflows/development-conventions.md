@@ -15,4 +15,3 @@ The conventions must:
 After generating conventions.md:
 
 - add this prompt to the current prompt session so it becomes part of the project's prompt workflow and can be reused later.
-

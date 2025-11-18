@@ -110,4 +110,3 @@ export function ResultPanel({ result, error }: ResultPanelProps) {
     </div>
   );
 }
-

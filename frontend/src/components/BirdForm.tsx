@@ -16,7 +16,7 @@ export function BirdForm({ onSubmit, isLoading }: BirdFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!description.trim()) {
       return;
     }
@@ -99,4 +99,3 @@ export function BirdForm({ onSubmit, isLoading }: BirdFormProps) {
     </form>
   );
 }
-

@@ -111,4 +111,3 @@ An iteration counts as done when:
 - ✅ `@docs/tasklist.md` reflects the new status.
 - ✅ A dedicated commit was created.
 - ✅ Next iteration start was confirmed.
-

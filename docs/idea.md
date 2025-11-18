@@ -15,4 +15,3 @@
   - Surface regional rarity alerts and conservation statuses.
   - Log anonymized sightings to personalize future suggestions.
 - **Next Steps**: Define MCP schema, build the eBird connector, stand up the web frontend, and design prompt strategies for robust species ranking.
-

@@ -1,7 +1,9 @@
 """
 Pydantic schemas for bird observation data.
 """
+
 from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -25,10 +27,5 @@ class RecommendationResponse(BaseModel):
     """Response containing bird identification recommendation."""
 
     message: str = Field(..., description="Summary message about the identification")
-    top_species: Optional[SpeciesInfo] = Field(
-        None, description="Top matching species information"
-    )
-    clarification: Optional[str] = Field(
-        None, description="Follow-up question if more info needed"
-    )
-
+    top_species: Optional[SpeciesInfo] = Field(None, description="Top matching species information")
+    clarification: Optional[str] = Field(None, description="Follow-up question if more info needed")

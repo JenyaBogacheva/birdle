@@ -21,7 +21,7 @@
 ## Iteration Backlog
 
 ### Iteration 1 — Stubbed end-to-end flow ✅
-**Goal:** Bootstrap a usable round-trip with stubbed data.  
+**Goal:** Bootstrap a usable round-trip with stubbed data.
 **Test:** Submit a description ➝ receive the canned species payload in the UI.
 
 - [x] Scaffold FastAPI `/api/identify` endpoint returning a fixed species payload.
@@ -42,7 +42,7 @@
 - Both backend (port 8000) and frontend (port 5173) running successfully
 
 ### Iteration 2 — eBird MCP integration
-**Goal:** Replace the stub with live data from the eBird MCP helper.  
+**Goal:** Replace the stub with live data from the eBird MCP helper.
 **Test:** Describe a bird ➝ receive ranked species with confidence hints from MCP.
 
 - [ ] Implement backend client that queries the eBird MCP helper using the user description.
@@ -53,7 +53,7 @@
 **Result:** The assistant surfaces live species predictions grounded in MCP output.
 
 ### Iteration 3 — Ranking + richer output
-**Goal:** Improve ranking logic and enrich user context.  
+**Goal:** Improve ranking logic and enrich user context.
 **Test:** Provide multiple descriptors ➝ see ordered species with traits and links.
 
 - [ ] Introduce lightweight scoring heuristics (location, plumage keywords) before sending MCP queries.
@@ -64,7 +64,7 @@
 **Result:** Responses prioritize the most likely species and offer actionable follow-up info.
 
 ### Iteration 4 — Resilience & observability
-**Goal:** Harden the flow and surface actionable signals.  
+**Goal:** Harden the flow and surface actionable signals.
 **Test:** Force MCP errors or delays ➝ system recovers gracefully with clear messaging.
 
 - [ ] Implement graceful fallbacks for empty MCP replies, rate limits, or timeouts.
@@ -79,4 +79,3 @@
 - Goal-oriented test path is executed and recorded.
 - No critical regressions; logs show expected metadata.
 - Doc updates and progress table reflect the latest state.
-

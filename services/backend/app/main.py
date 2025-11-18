@@ -1,6 +1,7 @@
 """
 FastAPI application entry point.
 """
+
 import logging
 from contextlib import asynccontextmanager
 
@@ -58,4 +59,3 @@ async def root():
         "version": "0.1.0",
         "status": "running",
     }
-

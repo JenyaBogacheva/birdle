@@ -1,8 +1,10 @@
 """
 Bird identification endpoint.
 """
+
 import logging
-from fastapi import APIRouter, HTTPException
+
+from fastapi import APIRouter
 
 from ..schemas.observation import ObservationInput, RecommendationResponse, SpeciesInfo
 
@@ -41,4 +43,3 @@ async def identify_bird(observation: ObservationInput) -> RecommendationResponse
     logger.info(f"Returning stubbed response: species={stubbed_response.top_species.common_name}")
 
     return stubbed_response
-
