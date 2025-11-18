@@ -1,6 +1,8 @@
 # Bird-ID MVP 🐦✨
 
-AI-powered bird identification using natural language • Describe what you saw, get instant species matches with confidence levels
+**Full-stack AI application built from scratch in ~10 days** • Natural language → GPT-4o-mini → Regional eBird data → Ranked species with images
+
+**Live demo:** https://birdle-ai.vercel.app/ | **Key skills:** React, TypeScript, Python, FastAPI, OpenAI, MCP, Testing, DevOps
 
 ---
 
@@ -106,12 +108,25 @@ birdle/
 
 ## 📊 Quality Metrics
 
+**Test Coverage:**
+```bash
+$ poetry run pytest services/backend/tests/
+============================= 44 passed in 20s ==============================
+```
+
+**Type Safety:**
+```bash
+$ poetry run mypy services/backend/app --ignore-missing-imports
+Success: no issues found in 13 source files
+```
+
 - ✅ **44 passing tests** (unit + integration)
 - ✅ **Full type checking** (TypeScript + mypy)
 - ✅ **Structured logging** (latency tracking, token usage)
 - ✅ **Error handling** (retries, timeouts, fallbacks)
 - ✅ **Content moderation** (OpenAI moderation API)
 - ✅ **Global coverage** (eBird regions worldwide)
+- ✅ **Pre-commit hooks** (Ruff, Black, ESLint enforced)
 
 ## 🏗️ Architecture
 

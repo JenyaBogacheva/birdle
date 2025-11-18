@@ -160,7 +160,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
                 # Sort by observation count and limit results
                 sorted_species = sorted(
                     species_seen.values(),
-                    key=lambda x: x["observation_count"],
+                    key=lambda x: int(x["observation_count"]),
                     reverse=True,
                 )
                 result["species_observed"] = sorted_species[:max_results]
