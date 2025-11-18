@@ -1,8 +1,10 @@
 """
-Bird identification endpoint.
+Bird identification endpoint with resilience and observability.
 """
 
+import asyncio
 import logging
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -12,6 +14,9 @@ from ..helpers.openai_client import openai_client
 from ..schemas.observation import ObservationInput, RecommendationResponse, SpeciesInfo
 
 logger = logging.getLogger(__name__)
+
+# Timeout for the entire identification flow
+IDENTIFY_TIMEOUT = 60.0  # 60 seconds total
 
 router = APIRouter(prefix="/api", tags=["identification"])
 
@@ -128,18 +133,16 @@ Examples:
         )
 
 
-@router.post("/identify", response_model=RecommendationResponse)
-async def identify_bird(observation: ObservationInput) -> RecommendationResponse:
+async def _identify_bird_internal(observation: ObservationInput) -> RecommendationResponse:
     """
-    Identify a bird based on user observation description.
+    Internal identification logic with error handling.
 
-    Uses OpenAI for reasoning and eBird MCP for regional species data and images.
+    Args:
+        observation: User observation input
+
+    Returns:
+        Recommendation response with species information
     """
-    logger.info(
-        f"Received identification request: description='{observation.description[:50]}...', "
-        f"location={observation.location}, observed_at={observation.observed_at}"
-    )
-
     try:
         # Step 1: Check content moderation
         is_safe = await openai_client.moderate_content(observation.description)
@@ -266,3 +269,90 @@ async def identify_bird(observation: ObservationInput) -> RecommendationResponse
     except Exception as e:
         logger.error(f"Error during bird identification: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal server error during identification")
+
+
+@router.post("/identify", response_model=RecommendationResponse)
+async def identify_bird(observation: ObservationInput) -> RecommendationResponse:
+    """
+    Identify a bird based on user observation description with timeout and observability.
+
+    Uses OpenAI for reasoning and eBird MCP for regional species data and images.
+    Includes timeout protection and structured logging for production resilience.
+    """
+    request_start = time.time()
+
+    logger.info(
+        "Identification request started",
+        extra={
+            "operation": "identify_bird",
+            "description_length": len(observation.description),
+            "location": observation.location,
+            "has_timestamp": bool(observation.observed_at),
+        },
+    )
+
+    try:
+        # Wrap the entire identification flow with a timeout
+        result = await asyncio.wait_for(
+            _identify_bird_internal(observation), timeout=IDENTIFY_TIMEOUT
+        )
+
+        total_latency_ms = (time.time() - request_start) * 1000
+        logger.info(
+            "Identification request completed successfully",
+            extra={
+                "operation": "identify_bird",
+                "total_latency_ms": round(total_latency_ms, 2),
+                "has_top_species": result.top_species is not None,
+                "alternate_count": len(result.alternate_species) if result.alternate_species else 0,
+                "has_clarification": result.clarification is not None,
+                "status": "success",
+            },
+        )
+        return result
+
+    except asyncio.TimeoutError:
+        total_latency_ms = (time.time() - request_start) * 1000
+        logger.error(
+            "Identification request timeout",
+            extra={
+                "operation": "identify_bird",
+                "total_latency_ms": round(total_latency_ms, 2),
+                "timeout_seconds": IDENTIFY_TIMEOUT,
+                "status": "timeout",
+            },
+        )
+        raise HTTPException(
+            status_code=504,
+            detail=f"Request timed out after {IDENTIFY_TIMEOUT} seconds. Please try again.",
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions with logging
+        total_latency_ms = (time.time() - request_start) * 1000
+        logger.warning(
+            "Identification request failed with HTTP exception",
+            extra={
+                "operation": "identify_bird",
+                "total_latency_ms": round(total_latency_ms, 2),
+                "status": "http_error",
+            },
+        )
+        raise
+
+    except Exception as e:
+        total_latency_ms = (time.time() - request_start) * 1000
+        logger.error(
+            f"Identification request failed with unexpected error: {e}",
+            extra={
+                "operation": "identify_bird",
+                "total_latency_ms": round(total_latency_ms, 2),
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "status": "error",
+            },
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500, detail="An unexpected error occurred. Please try again later."
+        )

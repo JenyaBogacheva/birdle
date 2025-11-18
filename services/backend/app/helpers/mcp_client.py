@@ -8,10 +8,15 @@ import json
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
+# Timeout configurations for resilience
+TOOL_CALL_TIMEOUT = 30.0  # Timeout for individual tool calls
+INIT_TIMEOUT = 5.0  # Timeout for MCP initialization
 
 
 class eBirdMCPHelper:  # noqa: N801 - eBird is a proper brand name
@@ -62,7 +67,7 @@ class eBirdMCPHelper:  # noqa: N801 - eBird is a proper brand name
         await self.process.stdin.drain()
 
         # Read initialization response
-        init_response = await asyncio.wait_for(self.process.stdout.readline(), timeout=5.0)
+        init_response = await asyncio.wait_for(self.process.stdout.readline(), timeout=INIT_TIMEOUT)
 
         if init_response:
             response_data = json.loads(init_response.decode())
@@ -85,7 +90,7 @@ class eBirdMCPHelper:  # noqa: N801 - eBird is a proper brand name
 
     async def call_tool(self, tool_name: str, arguments: dict[str, Any]) -> Any:
         """
-        Call an MCP tool directly via JSON-RPC.
+        Call an MCP tool directly via JSON-RPC with structured logging.
 
         This uses the simple approach from the working example.
         """
@@ -103,7 +108,15 @@ class eBirdMCPHelper:  # noqa: N801 - eBird is a proper brand name
             "id": 1,
         }
 
-        logger.info(f"Calling MCP tool: {tool_name} with args: {arguments}")
+        start_time = time.time()
+        logger.info(
+            "MCP tool call started",
+            extra={
+                "tool": tool_name,
+                "operation": "call_tool",
+                "arguments": arguments,
+            },
+        )
 
         try:
             # Send request
@@ -112,28 +125,79 @@ class eBirdMCPHelper:  # noqa: N801 - eBird is a proper brand name
             await self.process.stdin.drain()
 
             # Read response with timeout
-            response_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=30.0)
+            response_line = await asyncio.wait_for(
+                self.process.stdout.readline(), timeout=TOOL_CALL_TIMEOUT
+            )
 
             if not response_line:
                 raise RuntimeError("MCP server closed connection")
 
             response = json.loads(response_line.decode())
-            logger.info(f"MCP tool call completed: {tool_name}")
+            latency_ms = (time.time() - start_time) * 1000
+
+            logger.info(
+                "MCP tool call succeeded",
+                extra={
+                    "tool": tool_name,
+                    "operation": "call_tool",
+                    "latency_ms": round(latency_ms, 2),
+                    "status": "success",
+                },
+            )
 
             return response.get("result", {})
 
         except asyncio.TimeoutError:
-            logger.error(f"Timeout calling MCP tool: {tool_name}")
-            raise RuntimeError(f"Timeout calling MCP tool: {tool_name}")
+            latency_ms = (time.time() - start_time) * 1000
+            logger.warning(
+                "MCP tool call timeout",
+                extra={
+                    "tool": tool_name,
+                    "operation": "call_tool",
+                    "latency_ms": round(latency_ms, 2),
+                    "status": "timeout",
+                    "timeout_seconds": TOOL_CALL_TIMEOUT,
+                },
+            )
+            raise RuntimeError(f"Timeout calling MCP tool '{tool_name}' after {TOOL_CALL_TIMEOUT}s")
         except Exception as e:
-            logger.error(f"Error calling MCP tool: {e}", exc_info=True)
+            latency_ms = (time.time() - start_time) * 1000
+            logger.error(
+                f"MCP tool call failed: {e}",
+                extra={
+                    "tool": tool_name,
+                    "operation": "call_tool",
+                    "latency_ms": round(latency_ms, 2),
+                    "status": "error",
+                    "error_type": type(e).__name__,
+                },
+                exc_info=True,
+            )
             raise
+
+    def _empty_observations_fallback(self, region: str, days: int) -> dict[str, Any]:
+        """
+        Return empty observations fallback response.
+
+        Args:
+            region: Region code
+            days: Days searched
+
+        Returns:
+            Empty observations structure
+        """
+        return {
+            "region": region,
+            "days_searched": days,
+            "total_observations": 0,
+            "species_observed": [],
+        }
 
     async def get_recent_observations(
         self, region: str = "US", days: int = 14, max_results: int = 50
     ) -> dict[str, Any]:
         """
-        Get recent bird observations for a region.
+        Get recent bird observations for a region with graceful fallbacks.
 
         Args:
             region: Region code (e.g., 'US', 'US-NY')
@@ -141,8 +205,10 @@ class eBirdMCPHelper:  # noqa: N801 - eBird is a proper brand name
             max_results: Maximum results to return
 
         Returns:
-            Dictionary with observation data
+            Dictionary with observation data (empty structure on errors)
         """
+        start_time = time.time()
+
         try:
             result = await self.call_tool(
                 "get_recent_observations",
@@ -156,39 +222,60 @@ class eBirdMCPHelper:  # noqa: N801 - eBird is a proper brand name
                     # First content item should have the text
                     text_data = content_list[0].get("text", "{}")
                     parsed: dict[str, Any] = json.loads(text_data)
-                    logger.info(f"Parsed {len(parsed.get('species_observed', []))} species")
+                    species_count = len(parsed.get("species_observed", []))
+                    latency_ms = (time.time() - start_time) * 1000
+
+                    logger.info(
+                        f"Retrieved {species_count} species observations",
+                        extra={
+                            "operation": "get_recent_observations",
+                            "region": region,
+                            "species_count": species_count,
+                            "latency_ms": round(latency_ms, 2),
+                            "status": "success",
+                        },
+                    )
                     return parsed
 
-            logger.warning("MCP returned unexpected format")
-            return {
-                "region": region,
-                "days_searched": days,
-                "total_observations": 0,
-                "species_observed": [],
-            }
+            # Empty or unexpected format - return fallback
+            logger.warning(
+                "MCP returned unexpected format, using empty fallback",
+                extra={"operation": "get_recent_observations", "region": region},
+            )
+            return self._empty_observations_fallback(region, days)
+
+        except RuntimeError as e:
+            # Timeout or connection error - return fallback
+            logger.warning(
+                f"MCP call failed, using empty fallback: {e}",
+                extra={"operation": "get_recent_observations", "region": region, "error": str(e)},
+            )
+            return self._empty_observations_fallback(region, days)
 
         except Exception as e:
-            logger.error(f"Error getting observations: {e}")
-            return {
-                "region": region,
-                "days_searched": days,
-                "total_observations": 0,
-                "species_observed": [],
-            }
+            # Unexpected error - return fallback
+            logger.error(
+                f"Unexpected error getting observations: {e}",
+                extra={"operation": "get_recent_observations", "region": region},
+                exc_info=True,
+            )
+            return self._empty_observations_fallback(region, days)
 
     async def get_species_image(self, species_code: str) -> Optional[dict[str, Any]]:
         """
-        Get top-rated image for a species from Macaulay Library.
+        Get top-rated image for a species from Macaulay Library with graceful fallbacks.
 
         Args:
             species_code: eBird species code (e.g., 'norcar')
 
         Returns:
-            Dictionary with image_url and photographer, or None if not found
+            Dictionary with image_url and photographer, or None if not found/on error
         """
         if not species_code:
             logger.warning("No species code provided for image fetch")
             return None
+
+        start_time = time.time()
 
         try:
             result = await self.call_tool("get_species_image", {"species_code": species_code})
@@ -202,20 +289,55 @@ class eBirdMCPHelper:  # noqa: N801 - eBird is a proper brand name
 
                     # Return None if no image found
                     if parsed.get("image_url"):
-                        logger.info(f"Retrieved image for {species_code}")
+                        latency_ms = (time.time() - start_time) * 1000
+                        logger.info(
+                            "Retrieved image for species",
+                            extra={
+                                "operation": "get_species_image",
+                                "species_code": species_code,
+                                "latency_ms": round(latency_ms, 2),
+                                "status": "success",
+                            },
+                        )
                         return {
                             "image_url": parsed["image_url"],
                             "photographer": parsed.get("photographer", "Unknown"),
                         }
                     else:
-                        logger.info(f"No image available for {species_code}")
+                        logger.info(
+                            "No image available for species",
+                            extra={
+                                "operation": "get_species_image",
+                                "species_code": species_code,
+                                "status": "not_found",
+                            },
+                        )
                         return None
 
-            logger.warning("MCP returned unexpected format for image")
+            logger.warning(
+                "MCP returned unexpected format for image",
+                extra={"operation": "get_species_image", "species_code": species_code},
+            )
+            return None
+
+        except RuntimeError as e:
+            # Timeout or connection error - return None (image is optional)
+            logger.warning(
+                f"MCP call failed for image, continuing without image: {e}",
+                extra={
+                    "operation": "get_species_image",
+                    "species_code": species_code,
+                    "error": str(e),
+                },
+            )
             return None
 
         except Exception as e:
-            logger.warning(f"Error fetching image for {species_code}: {e}")
+            # Unexpected error - return None (image is optional)
+            logger.warning(
+                f"Error fetching image, continuing without image: {e}",
+                extra={"operation": "get_species_image", "species_code": species_code},
+            )
             return None
 
     async def close(self):

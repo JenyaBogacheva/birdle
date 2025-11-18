@@ -4,6 +4,7 @@ OpenAI API client with structured responses and error handling.
 
 import json
 import logging
+import time
 from typing import Any, Optional
 
 from openai import AsyncOpenAI, OpenAIError
@@ -60,23 +61,37 @@ class OpenAIClient:
 
         attempts = 0
         last_error = None
+        start_time = time.time()
 
         while attempts <= max_retries:
             try:
                 logger.info(
-                    f"OpenAI request attempt {attempts + 1}/{max_retries + 1}, "
-                    f"model={self.model}"
+                    f"OpenAI request attempt {attempts + 1}/{max_retries + 1}",
+                    extra={
+                        "operation": "chat_completion",
+                        "model": self.model,
+                        "attempt": attempts + 1,
+                        "max_attempts": max_retries + 1,
+                    },
                 )
 
                 response = await self.client.chat.completions.create(**request_params)
+                latency_ms = (time.time() - start_time) * 1000
 
-                # Log metrics
+                # Log metrics with structured data
                 usage = response.usage
                 if usage:
                     logger.info(
-                        f"OpenAI response: tokens={usage.total_tokens} "
-                        f"(prompt={usage.prompt_tokens}, "
-                        f"completion={usage.completion_tokens})"
+                        "OpenAI response successful",
+                        extra={
+                            "operation": "chat_completion",
+                            "model": self.model,
+                            "latency_ms": round(latency_ms, 2),
+                            "total_tokens": usage.total_tokens,
+                            "prompt_tokens": usage.prompt_tokens,
+                            "completion_tokens": usage.completion_tokens,
+                            "status": "success",
+                        },
                     )
 
                 # Extract content
@@ -101,11 +116,32 @@ class OpenAIClient:
             except OpenAIError as e:
                 last_error = e
                 attempts += 1
-                logger.warning(f"OpenAI error (attempt {attempts}): {e}")
+                latency_ms = (time.time() - start_time) * 1000
+
+                # Log with structured data
+                logger.warning(
+                    f"OpenAI error (attempt {attempts})",
+                    extra={
+                        "operation": "chat_completion",
+                        "model": self.model,
+                        "attempt": attempts,
+                        "latency_ms": round(latency_ms, 2),
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "status": "retry" if attempts <= max_retries else "failed",
+                    },
+                )
 
                 # Don't retry on rate limit or invalid request
                 if hasattr(e, "status_code") and e.status_code in [400, 401, 429]:
-                    logger.error(f"Non-retryable OpenAI error: {e}")
+                    logger.error(
+                        "Non-retryable OpenAI error",
+                        extra={
+                            "operation": "chat_completion",
+                            "status_code": e.status_code,
+                            "error": str(e),
+                        },
+                    )
                     raise
 
                 if attempts > max_retries:
@@ -119,7 +155,7 @@ class OpenAIClient:
 
     async def moderate_content(self, text: str) -> bool:
         """
-        Check if content passes OpenAI moderation.
+        Check if content passes OpenAI moderation with structured logging.
 
         Args:
             text: Content to moderate
@@ -130,19 +166,52 @@ class OpenAIClient:
         Raises:
             OpenAIError: On API errors
         """
+        start_time = time.time()
+
         try:
-            logger.info("Running content moderation check")
+            logger.info(
+                "Running content moderation check",
+                extra={"operation": "moderate_content", "text_length": len(text)},
+            )
             response = await self.client.moderations.create(input=text)
+            latency_ms = (time.time() - start_time) * 1000
 
             flagged = response.results[0].flagged
             if flagged:
                 categories = response.results[0].categories
-                logger.warning(f"Content flagged by moderation: {categories}")
+                logger.warning(
+                    "Content flagged by moderation",
+                    extra={
+                        "operation": "moderate_content",
+                        "latency_ms": round(latency_ms, 2),
+                        "flagged": True,
+                        "categories": str(categories),
+                        "status": "flagged",
+                    },
+                )
+            else:
+                logger.info(
+                    "Content passed moderation",
+                    extra={
+                        "operation": "moderate_content",
+                        "latency_ms": round(latency_ms, 2),
+                        "status": "passed",
+                    },
+                )
 
             return not flagged
 
         except OpenAIError as e:
-            logger.error(f"Moderation check failed: {e}")
+            latency_ms = (time.time() - start_time) * 1000
+            logger.error(
+                f"Moderation check failed: {e}",
+                extra={
+                    "operation": "moderate_content",
+                    "latency_ms": round(latency_ms, 2),
+                    "error": str(e),
+                    "status": "error",
+                },
+            )
             # Fail open - don't block on moderation errors
             return True
 
