@@ -1,6 +1,6 @@
 # ADR-015: LLM-Based Location Extraction for eBird Region Codes
 
-- **Status**: Accepted
+- **Status**: Accepted (amended by ADR-019)
 - **Context**: Users can enter locations in various formats (countries, cities, states, informal names like "NYC" or "Sydney"). We needed to convert these to eBird region codes (e.g., "US-NY", "AU", "GB"). Options were: (1) hardcoded mapping tables for countries and US states, or (2) use OpenAI to intelligently extract region codes. Hardcoded mappings are faster but require maintenance and don't handle variations well. LLM extraction is flexible but adds an API call.
 - **Decision**: Use OpenAI with a specialized prompt to extract eBird region codes from natural language location strings. The LLM receives clear rules (ISO codes for countries, US-XX format for states) and examples, returning only the region code. This adds one extra OpenAI API call per identification request but runs before the main identification query.
 - **Consequences**: We eliminate hardcoded location mappings and gain flexibility to handle any location format, including typos and variations ("Sydney" → "AU", "NYC" → "US-NY"). The cost is one additional OpenAI API call per request (~$0.00002), which is acceptable for MVP. The LLM approach is maintainable and doesn't require updating code for new locations. Fallback to "US" ensures graceful degradation if extraction fails.
