@@ -94,28 +94,28 @@ export function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-100 via-orange-50 to-yellow-100 relative overflow-hidden">
-      {/* Decorative bird emojis - clean balanced placement */}
+      {/* Decorative bird emojis - hidden on mobile, visible on tablet+ */}
       {/* Top corners */}
-      <div className="fixed top-[8%] left-[6%] text-6xl opacity-25 animate-bounce-slow pointer-events-none">
+      <div className="hidden sm:block fixed top-[8%] left-[6%] text-6xl opacity-25 animate-bounce-slow pointer-events-none">
         🦆
       </div>
-      <div className="fixed top-[8%] right-[6%] text-6xl opacity-25 animate-bounce-slow pointer-events-none" style={{ animationDelay: '1s' }}>
+      <div className="hidden sm:block fixed top-[8%] right-[6%] text-6xl opacity-25 animate-bounce-slow pointer-events-none" style={{ animationDelay: '1s' }}>
         🦢
       </div>
 
       {/* Middle sides */}
-      <div className="fixed top-[40%] left-[3%] text-5xl opacity-[0.15] animate-bounce-slow pointer-events-none" style={{ animationDelay: '0.5s' }}>
+      <div className="hidden sm:block fixed top-[40%] left-[3%] text-5xl opacity-[0.15] animate-bounce-slow pointer-events-none" style={{ animationDelay: '0.5s' }}>
         🪶
       </div>
-      <div className="fixed top-[40%] right-[3%] text-5xl opacity-[0.15] animate-bounce-slow pointer-events-none" style={{ animationDelay: '1.5s' }}>
+      <div className="hidden sm:block fixed top-[40%] right-[3%] text-5xl opacity-[0.15] animate-bounce-slow pointer-events-none" style={{ animationDelay: '1.5s' }}>
         🐓
       </div>
 
       {/* Bottom corners */}
-      <div className="fixed bottom-[10%] left-[8%] text-6xl opacity-25 animate-bounce-slow pointer-events-none" style={{ animationDelay: '0.8s' }}>
+      <div className="hidden sm:block fixed bottom-[10%] left-[8%] text-6xl opacity-25 animate-bounce-slow pointer-events-none" style={{ animationDelay: '0.8s' }}>
         🦚
       </div>
-      <div className="fixed bottom-[10%] right-[8%] text-6xl opacity-25 animate-bounce-slow pointer-events-none" style={{ animationDelay: '2s' }}>
+      <div className="hidden sm:block fixed bottom-[10%] right-[8%] text-6xl opacity-25 animate-bounce-slow pointer-events-none" style={{ animationDelay: '2s' }}>
         🦤
       </div>
 
@@ -123,14 +123,14 @@ export function Home() {
         <div className="max-w-3xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
-            <div className="flex items-center justify-center gap-3 mb-3">
-              <span className="text-5xl">🦜</span>
-              <h1 className="text-5xl font-bold text-gray-900">
+            <div className="flex items-center justify-center gap-2 sm:gap-3 mb-3">
+              <span className="text-4xl sm:text-5xl">🦜</span>
+              <h1 className="text-4xl sm:text-5xl font-bold text-gray-900">
                 birdle-ai ✨
               </h1>
-              <span className="text-5xl">🦩</span>
+              <span className="text-4xl sm:text-5xl">🦩</span>
             </div>
-            <p className="text-xl text-gray-700">
+            <p className="text-lg sm:text-xl text-gray-700">
               spotted a bird? let's figure out what it is!
             </p>
           </div>
