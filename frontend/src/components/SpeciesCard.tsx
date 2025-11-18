@@ -12,10 +12,10 @@ interface SpeciesCardProps {
 export function SpeciesCard({ species, isPrimary = false }: SpeciesCardProps) {
   const [imageError, setImageError] = useState(false);
 
-  const cardBgColor = isPrimary ? 'bg-blue-50' : 'bg-gray-50';
-  const cardBorderColor = isPrimary ? 'border-blue-200' : 'border-gray-200';
-  const headingColor = isPrimary ? 'text-blue-900' : 'text-gray-900';
-  const textColor = isPrimary ? 'text-blue-800' : 'text-gray-700';
+  const cardBgColor = isPrimary ? 'bg-pink-50' : 'bg-gray-50';
+  const cardBorderColor = isPrimary ? 'border-pink-200' : 'border-gray-200';
+  const headingColor = isPrimary ? 'text-pink-900' : 'text-gray-900';
+  const textColor = isPrimary ? 'text-pink-800' : 'text-gray-700';
 
   return (
     <div className={`border rounded-lg p-4 ${cardBgColor} ${cardBorderColor}`}>
@@ -30,7 +30,7 @@ export function SpeciesCard({ species, isPrimary = false }: SpeciesCardProps) {
           />
           {species.image_credit && (
             <p className="text-xs text-gray-500 mt-1">
-              Photo by {species.image_credit}
+              photo by {species.image_credit} 📷
             </p>
           )}
         </div>
@@ -43,15 +43,17 @@ export function SpeciesCard({ species, isPrimary = false }: SpeciesCardProps) {
         </h4>
         {species.confidence && (
           <span
-            className={`px-2 py-1 rounded-full text-xs font-medium ${
+            className={`px-3 py-1 rounded-full text-sm font-medium ${
               species.confidence === 'high'
-                ? 'bg-green-100 text-green-800'
+                ? 'bg-blue-100 text-blue-700'
                 : species.confidence === 'medium'
-                ? 'bg-yellow-100 text-yellow-800'
-                : 'bg-orange-100 text-orange-800'
+                ? 'bg-orange-100 text-orange-700'
+                : 'bg-yellow-100 text-yellow-700'
             }`}
           >
-            {species.confidence.toUpperCase()}
+            {species.confidence === 'high' && 'pretty sure! ✨'}
+            {species.confidence === 'medium' && 'maybe? 🤔'}
+            {species.confidence === 'low' && 'wild guess 🎲'}
           </span>
         )}
       </div>
@@ -71,9 +73,9 @@ export function SpeciesCard({ species, isPrimary = false }: SpeciesCardProps) {
         href={species.range_link}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+        className="inline-flex items-center text-sm font-medium text-blue-500 hover:text-blue-700 hover:underline"
       >
-        View on eBird
+        view on ebird 🔗
         <svg
           className="ml-1 h-4 w-4"
           fill="none"

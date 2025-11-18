@@ -28,28 +28,28 @@ export function ResultPanel({
       error.toLowerCase().includes('failed to fetch');
     const isRateLimit = error.toLowerCase().includes('rate limit');
 
-    let errorTitle = 'Error';
+    let errorTitle = '😅 oops';
     let errorHint = '';
 
     if (isTimeout) {
-      errorTitle = 'Request Timeout';
+      errorTitle = '⏱️ took too long';
       errorHint =
-        'The request took too long to complete. This might be due to high server load or slow network. Please try again.';
+        'the request took too long to complete. this might be due to high server load or slow network. please try again!';
     } else if (isNetwork) {
-      errorTitle = 'Network Error';
+      errorTitle = '📡 connection hiccup';
       errorHint =
-        'Could not connect to the server. Please check your internet connection and try again.';
+        'could not connect to the server. please check your internet connection and try again!';
     } else if (isRateLimit) {
-      errorTitle = 'Rate Limit Exceeded';
-      errorHint = 'Too many requests. Please wait a moment before trying again.';
+      errorTitle = '🛑 whoa, slow down!';
+      errorHint = 'too many requests. please wait a moment before trying again.';
     }
 
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+      <div className="bg-orange-50 border-2 border-orange-400 rounded-lg p-6">
         <div className="flex items-start">
           <div className="flex-shrink-0">
             <svg
-              className="h-6 w-6 text-red-600"
+              className="h-6 w-6 text-orange-600"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -63,17 +63,17 @@ export function ResultPanel({
             </svg>
           </div>
           <div className="ml-3 flex-1">
-            <h3 className="text-sm font-medium text-red-800">{errorTitle}</h3>
-            <p className="mt-2 text-sm text-red-700">{error}</p>
+            <h3 className="text-base font-semibold text-orange-900">{errorTitle}</h3>
+            <p className="mt-2 text-sm text-orange-800">{error}</p>
             {errorHint && (
-              <p className="mt-2 text-sm text-red-600 italic">{errorHint}</p>
+              <p className="mt-2 text-sm text-orange-700 italic">{errorHint}</p>
             )}
             {canRetry && onRetry && (
               <button
                 onClick={onRetry}
-                className="mt-4 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+                className="mt-4 px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
               >
-                Try Again
+                try again 🔄
               </button>
             )}
           </div>
@@ -94,7 +94,7 @@ export function ResultPanel({
       {/* Summary Message */}
       <div>
         <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          Identification Result
+          here's what i found! ✨
         </h3>
         <p className="text-gray-700 leading-relaxed">{result.message}</p>
       </div>
@@ -103,7 +103,7 @@ export function ResultPanel({
       {result.top_species && (
         <div>
           <h4 className="text-md font-semibold text-gray-900 mb-3 flex items-center">
-            🎯 Top Match
+            ✨ most likely match
           </h4>
           <SpeciesCard species={result.top_species} isPrimary={true} />
         </div>
@@ -117,7 +117,7 @@ export function ResultPanel({
             className="flex items-center justify-between w-full text-left text-md font-semibold text-gray-900 hover:text-gray-700"
           >
             <span>
-              Alternative Matches ({result.alternate_species!.length})
+              🤔 could also be... ({result.alternate_species!.length})
             </span>
             <svg
               className={`h-5 w-5 transform transition-transform ${
@@ -167,14 +167,14 @@ export function ResultPanel({
             </div>
             <div className="ml-3">
               <h4 className="text-base font-semibold text-yellow-900 mb-2">
-                💡 Need More Information
+                🤔 hmm, need more details
               </h4>
               <p className="text-sm text-yellow-800 leading-relaxed">
                 {result.clarification}
               </p>
               <p className="text-xs text-yellow-700 mt-3 italic">
-                Tip: Provide more specific details about size, colors, behavior,
-                or habitat to improve identification accuracy.
+                tip: provide more specific details about size, colors, behavior,
+                or habitat to improve identification accuracy!
               </p>
             </div>
           </div>

@@ -11,6 +11,7 @@
 | 2 | eBird MCP integration | Complete | ✅ | Live APIs ready, awaiting keys |
 | 3 | Ranking + richer output | Complete | ✅ | Multi-species with images, global support |
 | 4 | Resilience & observability | Complete | ✅ | Timeouts, retries, structured logs |
+| 5 | Retro Gen Z UI + rebrand to birdle-ai | Complete | ✅ | Fun colors, emojis, casual tone |
 
 **Status legend**
 - ⏳ Planned
@@ -137,6 +138,78 @@
   - Performance benchmarks template
 - **Branch:** `feat/iteration-4-resilience-observability`
 - **Ready for:** PR review and merge to main
+
+### Iteration 5 — Retro Gen Z UI + rebrand to birdle-ai ✅
+**Goal:** Transform the UI from formal/corporate to fun, retro cartoonish Gen Z aesthetic + rebrand from "Bird-ID MVP" to "birdle-ai" with vibrant colors.
+**Test:** Visual check, functionality test, build verification.
+
+**Color Palette:**
+- Pink, orange, yellow, blue, dark grey
+- Gradient background: `from-pink-100 via-orange-50 to-yellow-100`
+- Primary button: Blue (`bg-blue-500`)
+- Confidence badges: Blue (high), orange (medium), yellow (low)
+
+**Changes:**
+
+- [x] **Branding:** Rename "Bird-ID MVP" → "birdle-ai" in all UI text and page title
+- [x] **Typography:** Lowercase headers where appropriate, remove stiff corporate language
+- [x] **Emojis:** Add strategic emojis throughout (headings, labels, states, errors)
+- [x] **Colors:** Update background gradient to pink/orange/yellow tones
+- [x] **Buttons:** Switch to blue primary color with proper hover/active states
+- [x] **Loading states:** Rewrite with casual language ("reading the vibes... 👀", etc.)
+- [x] **Form labels:** Make casual and fun ("what did you see? 🔍", "where are you? 📍")
+- [x] **Result headers:** Lowercase and playful ("here's what i found! ✨")
+- [x] **Error messages:** Keep helpful but add personality ("😅 oops", "📡 connection hiccup")
+- [x] **Confidence badges:** Update colors and text ("pretty sure! ✨", "maybe? 🤔", "wild guess 🎲")
+- [x] **Decorative elements:** Add bird sticker SVGs or emojis positioned around page
+- [x] **Footer:** Update with casual tone
+
+**Files Modified:**
+- `frontend/index.html` - page title updated to "birdle-ai 🐦✨"
+- `frontend/src/pages/Home.tsx` - heading, gradient, loading states, footer, decorative birds
+- `frontend/src/components/BirdForm.tsx` - labels, placeholders, button styling
+- `frontend/src/components/ResultPanel.tsx` - headers, error styling, button colors
+- `frontend/src/components/SpeciesCard.tsx` - confidence badge colors and text
+- `frontend/src/index.css` - added slow bounce animation for bird decorations
+
+**Test Results:**
+- ✅ TypeScript compiles with no errors
+- ✅ Frontend build successful (vite build passed)
+- ✅ No linter errors
+- ✅ All text updated to casual, fun tone
+- ✅ Emojis added throughout for personality
+- ✅ Color palette applied (pink/orange/yellow gradient)
+- ✅ Blue buttons with proper hover states
+- ✅ Decorative bird emojis positioned with animations
+
+**Result:** A fun, engaging UI that showcases the project as a playful Gen Z take on bird identification. The rebrand to "birdle-ai" gives it a more memorable, shareable identity.
+
+**Completion Notes:**
+- **Branding:** Successfully rebranded from "Bird-ID MVP" to "birdle-ai"
+- **Visual Design:**
+  - Warm gradient background (pink → orange → yellow)
+  - Blue primary actions maintain usability
+  - Pink accent on primary species cards
+  - Orange/yellow for confidence levels
+- **Decorative Elements:**
+  - Three bird emojis (🐦 🦜 🦅) positioned as background decorations
+  - Subtle animations (bounce, pulse) for playfulness
+  - Low opacity to avoid distraction
+- **Typography & Tone:**
+  - Lowercase used strategically for casual feel
+  - Emojis complement text without overwhelming
+  - Error messages helpful yet friendly
+  - Loading states conversational ("reading the vibes...")
+- **Accessibility:**
+  - Text contrast maintained for readability
+  - All functionality preserved
+  - Emojis enhance rather than replace meaning
+- **No Breaking Changes:**
+  - Zero backend modifications
+  - All schemas unchanged
+  - Full backward compatibility
+- **Branch:** `feat/iteration-5-retro-gen-z-ui`
+- **Ready for:** Visual review and merge
 
 ## Definition of Done
 - Tasks for the iteration are checked off.

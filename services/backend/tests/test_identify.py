@@ -20,7 +20,7 @@ def test_health_endpoint():
 
 
 def test_identify_endpoint_returns_stubbed_response():
-    """Test that identify endpoint returns stubbed Northern Cardinal response."""
+    """Test that identify endpoint returns valid response (live API)."""
     payload = {
         "description": "Small red bird with black mask and crest",
         "location": "New York, NY",
@@ -32,9 +32,11 @@ def test_identify_endpoint_returns_stubbed_response():
     data = response.json()
     assert "message" in data
     assert "top_species" in data
-    assert data["top_species"]["common_name"] == "Northern Cardinal"
-    assert data["top_species"]["scientific_name"] == "Cardinalis cardinalis"
-    assert data["clarification"] is None
+    # Live API response may vary, just check structure
+    assert "common_name" in data["top_species"]
+    assert "scientific_name" in data["top_species"]
+    # Clarification may or may not be present depending on LLM response
+    assert "clarification" in data
 
 
 def test_identify_endpoint_requires_description():

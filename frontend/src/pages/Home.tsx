@@ -93,16 +93,45 @@ export function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-12">
+    <div className="min-h-screen bg-gradient-to-br from-pink-100 via-orange-50 to-yellow-100 relative overflow-hidden">
+      {/* Decorative bird emojis - clean balanced placement */}
+      {/* Top corners */}
+      <div className="fixed top-[8%] left-[6%] text-6xl opacity-25 animate-bounce-slow pointer-events-none">
+        🦆
+      </div>
+      <div className="fixed top-[8%] right-[6%] text-6xl opacity-25 animate-bounce-slow pointer-events-none" style={{ animationDelay: '1s' }}>
+        🦢
+      </div>
+
+      {/* Middle sides */}
+      <div className="fixed top-[40%] left-[3%] text-5xl opacity-[0.15] animate-bounce-slow pointer-events-none" style={{ animationDelay: '0.5s' }}>
+        🪶
+      </div>
+      <div className="fixed top-[40%] right-[3%] text-5xl opacity-[0.15] animate-bounce-slow pointer-events-none" style={{ animationDelay: '1.5s' }}>
+        🐓
+      </div>
+
+      {/* Bottom corners */}
+      <div className="fixed bottom-[10%] left-[8%] text-6xl opacity-25 animate-bounce-slow pointer-events-none" style={{ animationDelay: '0.8s' }}>
+        🦚
+      </div>
+      <div className="fixed bottom-[10%] right-[8%] text-6xl opacity-25 animate-bounce-slow pointer-events-none" style={{ animationDelay: '2s' }}>
+        🦤
+      </div>
+
+      <div className="container mx-auto px-4 py-12 relative z-10">
         <div className="max-w-3xl mx-auto">
           {/* Header */}
           <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold text-gray-900 mb-3">
-              Bird-ID MVP
-            </h1>
-            <p className="text-lg text-gray-600">
-              Describe your bird observation and get instant identification
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <span className="text-5xl">🦜</span>
+              <h1 className="text-5xl font-bold text-gray-900">
+                birdle-ai ✨
+              </h1>
+              <span className="text-5xl">🦩</span>
+            </div>
+            <p className="text-xl text-gray-700">
+              spotted a bird? let's figure out what it is!
             </p>
           </div>
 
@@ -124,10 +153,10 @@ export function Home() {
                 <div className="text-center">
                   <p className="text-lg font-medium text-gray-900">
                     {loadingStage === 'analyzing' &&
-                      'Analyzing your description...'}
+                      'reading the vibes... 👀'}
                     {loadingStage === 'fetching' &&
-                      'Fetching recent bird sightings...'}
-                    {loadingStage === 'identifying' && 'Identifying species...'}
+                      'checking what\'s around... 🗺️'}
+                    {loadingStage === 'identifying' && 'got it! narrowing it down... 🎯'}
                   </p>
                   <p className="text-sm text-gray-500 mt-2">
                     {elapsedTime > 0 && `${elapsedTime}s elapsed`}
@@ -139,19 +168,19 @@ export function Home() {
                   <div
                     className={`w-2 h-2 rounded-full ${
                       loadingStage === 'analyzing'
-                        ? 'bg-blue-600'
+                        ? 'bg-pink-500'
                         : 'bg-gray-300'
                     }`}
                   />
                   <div
                     className={`w-2 h-2 rounded-full ${
-                      loadingStage === 'fetching' ? 'bg-blue-600' : 'bg-gray-300'
+                      loadingStage === 'fetching' ? 'bg-orange-500' : 'bg-gray-300'
                     }`}
                   />
                   <div
                     className={`w-2 h-2 rounded-full ${
                       loadingStage === 'identifying'
-                        ? 'bg-blue-600'
+                        ? 'bg-yellow-500'
                         : 'bg-gray-300'
                     }`}
                   />
@@ -173,10 +202,9 @@ export function Home() {
           )}
 
           {/* Footer */}
-          <div className="text-center mt-12 text-gray-500 text-sm">
+          <div className="text-center mt-12 text-gray-600 text-sm">
             <p>
-              Powered by FastAPI, React, and OpenAI • Iteration 1 (Stubbed
-              Flow)
+              powered by fastapi, react, openai, and vibes ⚡✨
             </p>
           </div>
         </div>

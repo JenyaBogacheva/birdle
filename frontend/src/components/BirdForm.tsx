@@ -37,14 +37,14 @@ export function BirdForm({ onSubmit, isLoading }: BirdFormProps) {
           htmlFor="description"
           className="block text-sm font-medium text-gray-700 mb-2"
         >
-          Bird Description *
+          what did you see? 🔍
         </label>
         <textarea
           id="description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Describe the bird you observed (e.g., small red bird with black mask, long tail...)"
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          placeholder="tiny? colorful? sitting in a tree? tell me everything! ✨"
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
           rows={5}
           required
           disabled={isLoading}
@@ -57,15 +57,15 @@ export function BirdForm({ onSubmit, isLoading }: BirdFormProps) {
             htmlFor="location"
             className="block text-sm font-medium text-gray-700 mb-2"
           >
-            Location *
+            where are you? 📍
           </label>
           <input
             id="location"
             type="text"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            placeholder="e.g., Sydney, Australia or New York, USA"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="like 'brooklyn, ny' or 'london, uk' 🌍"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             required
             disabled={isLoading}
           />
@@ -76,15 +76,15 @@ export function BirdForm({ onSubmit, isLoading }: BirdFormProps) {
             htmlFor="observedAt"
             className="block text-sm font-medium text-gray-700 mb-2"
           >
-            Observed At (optional)
+            when? ⏰ (optional)
           </label>
           <input
             id="observedAt"
             type="text"
             value={observedAt}
             onChange={(e) => setObservedAt(e.target.value)}
-            placeholder="e.g., Today morning, Yesterday"
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="like 'today' or 'this morning' 🌅"
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             disabled={isLoading}
           />
         </div>
@@ -93,9 +93,9 @@ export function BirdForm({ onSubmit, isLoading }: BirdFormProps) {
       <button
         type="submit"
         disabled={isLoading || !description.trim() || !location.trim()}
-        className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full bg-blue-500 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-600 active:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {isLoading ? 'Identifying...' : 'Identify Bird'}
+        {isLoading ? 'searching... 🔍' : 'let\'s go! 🚀'}
       </button>
     </form>
   );
