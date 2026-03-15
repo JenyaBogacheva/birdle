@@ -9,7 +9,7 @@ export async function identifyBird(
   observation: ObservationInput
 ): Promise<RecommendationResponse> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 45_000);
+  const timeoutId = setTimeout(() => controller.abort(), 95_000);
 
   try {
     const response = await fetch(`${API_BASE_URL}/api/identify`, {

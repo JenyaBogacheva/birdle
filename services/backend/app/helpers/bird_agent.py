@@ -165,7 +165,7 @@ FALLBACK_RESPONSE: dict[str, Any] = {
     "clarification": "Please describe the bird's size, colors, and behavior in more detail.",
 }
 
-MAX_ITERATIONS = 8
+MAX_ITERATIONS = 4
 
 
 async def _execute_tool(name: str, input_data: dict[str, Any]) -> Any:

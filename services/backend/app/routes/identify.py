@@ -13,7 +13,7 @@ from ..schemas.observation import ObservationInput, RecommendationResponse, Spec
 logger = logging.getLogger(__name__)
 
 # Timeout for the entire identification flow
-IDENTIFY_TIMEOUT = 60.0  # 60 seconds total
+IDENTIFY_TIMEOUT = 90.0  # 90 seconds total
 
 router = APIRouter(prefix="/api", tags=["identification"])
 
