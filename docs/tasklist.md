@@ -12,6 +12,7 @@
 | 3 | Ranking + richer output | Complete | ✅ | Multi-species with images, global support |
 | 4 | Resilience & observability | Complete | ✅ | Timeouts, retries, structured logs |
 | 5 | Retro Gen Z UI + rebrand to birdle-ai | Complete | ✅ | Fun colors, emojis, casual tone |
+| 6 | Agentic architecture (Claude + Tavily) | Complete | ✅ | Replace OpenAI+MCP with Claude agent |
 
 **Status legend**
 - ⏳ Planned
@@ -210,6 +211,32 @@
   - Full backward compatibility
 - **Branch:** `feat/iteration-5-retro-gen-z-ui`
 - **Ready for:** Visual review and merge
+
+### Iteration 6 — Agentic architecture (Claude + Tavily) ✅
+**Goal:** Replace the rigid hardcoded pipeline with an agentic architecture: Claude Sonnet with extended thinking, direct eBird API calls (no MCP), and web search via Tavily.
+**Test:** Submit a description -> receive species identification driven by agent tool calls.
+
+- [x] Update dependencies: add `anthropic`, `tavily-python`; remove `openai`, `mcp`
+- [x] Update settings: `ANTHROPIC_API_KEY`, `TAVILY_API_KEY`, `EBIRD_TOKEN`
+- [x] Create direct eBird client (`helpers/ebird_client.py`) replacing MCP
+- [x] Create Tavily web search client (`helpers/web_search.py`)
+- [x] Create bird identification agent (`helpers/bird_agent.py`) with tool calling loop
+- [x] Rewrite identify route to call agent instead of old pipeline
+- [x] Delete old files: `mcp/`, `openai_client.py`, `mcp_client.py`, `configs/prompts/`
+- [x] Rewrite backend tests for new architecture
+- [x] Update frontend timeout to 90s
+- [x] Update config files and documentation
+
+**Result:** The LLM now has agency over what data it fetches. It uses extended thinking to reason through identifications, calls eBird and web search tools as needed, and produces higher-quality results. MCP subprocess complexity eliminated (~450 lines removed).
+
+**Completion Notes:**
+- **Architecture:** Agentic pattern with Claude Sonnet + 3 tools (eBird, images, web search)
+- **Files Created:** `bird_agent.py`, `ebird_client.py`, `web_search.py`
+- **Files Deleted:** `mcp/ebird_server.py`, `mcp/__init__.py`, `helpers/openai_client.py`, `helpers/mcp_client.py`, `configs/prompts/identify_system.txt`, `configs/prompts/identify_user.txt`
+- **Dependencies:** `anthropic` + `tavily-python` added; `openai` + `mcp` removed
+- **Tests:** All rewritten to mock Anthropic SDK instead of OpenAI
+- **Config:** `render.yaml`, `.env.example`, `README.md`, `CLAUDE.md`, `vision.md` updated
+- **Branch:** `feat/iteration-6-agentic-architecture`
 
 ## Definition of Done
 - Tasks for the iteration are checked off.
