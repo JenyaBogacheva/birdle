@@ -11,7 +11,7 @@ class ObservationInput(BaseModel):
     """User's bird observation input."""
 
     description: str = Field(..., min_length=1, description="Description of the observed bird")
-    location: Optional[str] = Field(None, description="Location where bird was observed")
+    location: str = Field(..., min_length=1, description="Location where bird was observed")
     observed_at: Optional[str] = Field(None, description="When the bird was observed")
 
 
