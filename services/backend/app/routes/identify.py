@@ -8,6 +8,7 @@ from urllib.parse import quote_plus
 from fastapi import APIRouter, HTTPException
 
 from ..helpers.bird_agent import bird_agent
+from ..helpers.ebird_client import ebird_client
 from ..schemas.observation import ObservationInput, RecommendationResponse, SpeciesInfo
 
 logger = logging.getLogger(__name__)
@@ -18,17 +19,28 @@ IDENTIFY_TIMEOUT = 90.0  # 90 seconds total
 router = APIRouter(prefix="/api", tags=["identification"])
 
 
-def _build_species_info(data: dict) -> SpeciesInfo:
-    """Build SpeciesInfo from agent result dict."""
+async def _build_species_info(data: dict) -> SpeciesInfo:
+    """Build SpeciesInfo from agent result dict, fetching image by species_code."""
     common_name = data.get("common_name", "Unknown")
+    species_code = data.get("species_code", "")
+
+    # Fetch image from Macaulay Library if we have a species code
+    image_url = None
+    image_credit = None
+    if species_code:
+        image_data = await ebird_client.get_species_image(species_code)
+        if image_data:
+            image_url = image_data.get("image_url")
+            image_credit = image_data.get("photographer")
+
     return SpeciesInfo(
         scientific_name=data.get("scientific_name", "Unknown"),
         common_name=common_name,
         range_link=f"https://ebird.org/explore?q={quote_plus(common_name)}",
         confidence=data.get("confidence"),
         reasoning=data.get("reasoning"),
-        image_url=data.get("image_url"),
-        image_credit=data.get("image_credit"),
+        image_url=image_url,
+        image_credit=image_credit,
     )
 
 
@@ -56,14 +68,21 @@ async def identify_bird(observation: ObservationInput) -> RecommendationResponse
             timeout=IDENTIFY_TIMEOUT,
         )
 
-        # Build response from agent result
+        # Build response — fetch images in parallel (outside agent loop)
         top_species = None
+        image_tasks = []
         if result.get("top_species"):
-            top_species = _build_species_info(result["top_species"])
+            image_tasks.append(_build_species_info(result["top_species"]))
+        for alt in result.get("alternate_species", []):
+            image_tasks.append(_build_species_info(alt))
 
-        alternate_species = [
-            _build_species_info(alt) for alt in result.get("alternate_species", [])
-        ]
+        built = await asyncio.gather(*image_tasks) if image_tasks else []
+
+        if result.get("top_species") and built:
+            top_species = built[0]
+            alternate_species = list(built[1:])
+        else:
+            alternate_species = list(built)
 
         response = RecommendationResponse(
             message=result.get("message", ""),

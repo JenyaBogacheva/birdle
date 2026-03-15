@@ -20,7 +20,13 @@ from .web_search import web_search_client
 
 logger = logging.getLogger(__name__)
 
-MODEL = "claude-sonnet-4-6"
+GUARDRAIL_MODEL = "claude-haiku-4-5"
+AGENT_MODEL = "claude-sonnet-4-6"
+
+GUARDRAIL_PROMPT = (
+    "Is the following user message a request to identify a bird or "
+    "about bird watching/ornithology? Answer only YES or NO."
+)
 
 SYSTEM_PROMPT = """\
 You are Birdle, an expert bird identification assistant.
@@ -33,14 +39,16 @@ Use them to ground your identification in evidence.
 
 1. Read the description carefully — note colors, size, behavior, habitat, sounds.
 2. Form initial hypotheses about what species this could be.
-3. Use get_regional_birds to check what's common in the user's area.
+3. Call get_regional_birds to check what's common in the user's area.
 4. If the description is unusual or doesn't match common regional birds,
-   use web_search to investigate further.
-5. Rank your candidates by likelihood. Consider:
-   - How well the description matches the species' appearance/behavior
-   - Whether the species is present in the region (eBird data)
-   - Season and habitat appropriateness
-6. Fetch images for your top 1-3 matches so the user can compare visually.
+   call web_search to investigate further.
+5. Produce your final identification as JSON.
+
+## Efficiency
+
+Be efficient with tool calls. Typically one call to get_regional_birds is enough.
+Only use web_search when the bird is truly unusual or doesn't match regional data.
+Do NOT fetch images — the system handles that separately after your response.
 
 ## Confidence levels
 
@@ -66,13 +74,14 @@ When calling get_regional_birds, convert the user's location to an eBird region 
 
 ## Output format
 
-After reasoning and using tools, provide your final answer as JSON:
+Provide your final answer as JSON:
 
 {
   "message": "Friendly explanation of your identification",
   "top_species": {
     "scientific_name": "Cardinalis cardinalis",
     "common_name": "Northern Cardinal",
+    "species_code": "norcar",
     "confidence": "high",
     "reasoning": "Why this is your top match — reference eBird data and description"
   },
@@ -80,6 +89,7 @@ After reasoning and using tools, provide your final answer as JSON:
     {
       "scientific_name": "...",
       "common_name": "...",
+      "species_code": "...",
       "confidence": "medium",
       "reasoning": "Why this is also possible"
     }
@@ -90,6 +100,7 @@ After reasoning and using tools, provide your final answer as JSON:
 Rules:
 - Top 1-3 matches. Don't force 3 if only 1-2 are reasonable.
 - Primary match should have highest confidence.
+- Include species_code from eBird data when available (used for images).
 - You CAN identify birds not in eBird data — just note it in reasoning.
 - If you cannot identify at all, set top_species to null and ask a clarifying question.
 - Be friendly, be honest about uncertainty, and show your reasoning.\
@@ -122,28 +133,10 @@ TOOLS: list[ToolParam] = [
         },
     },
     {
-        "name": "get_species_image",
-        "description": (
-            "Get a photo of a bird species from Macaulay Library. "
-            "Returns image URL and photographer credit."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "species_code": {
-                    "type": "string",
-                    "description": "eBird species code (e.g. 'norcar' for Northern Cardinal).",
-                },
-            },
-            "required": ["species_code"],
-        },
-    },
-    {
         "name": "web_search",
         "description": (
             "Search the web for bird identification information. "
-            "Useful when the description doesn't match common regional birds "
-            "or you need more details about a species."
+            "Only use when the bird is truly unusual or doesn't match regional eBird data."
         ),
         "input_schema": {
             "type": "object",
@@ -157,6 +150,17 @@ TOOLS: list[ToolParam] = [
         },
     },
 ]
+
+NOT_BIRD_RESPONSE: dict[str, Any] = {
+    "message": (
+        "I'm Birdle, a bird identification assistant! "
+        "I can only help with identifying birds. "
+        "Please describe a bird you've seen and I'll do my best to identify it."
+    ),
+    "top_species": None,
+    "alternate_species": [],
+    "clarification": "What did the bird look like? Include details like color, size, and behavior.",
+}
 
 FALLBACK_RESPONSE: dict[str, Any] = {
     "message": "I wasn't able to identify the bird. Could you provide more details?",
@@ -178,11 +182,6 @@ async def _execute_tool(name: str, input_data: dict[str, Any]) -> Any:
                 region=input_data["region"],
                 days=input_data.get("days", 14),
             )
-        elif name == "get_species_image":
-            image = await ebird_client.get_species_image(
-                input_data["species_code"],
-            )
-            result = image if image is not None else {"error": "No image found"}
         elif name == "web_search":
             result = await web_search_client.search(input_data["query"])
         else:
@@ -250,6 +249,25 @@ class BirdAgent:
     def __init__(self) -> None:
         self._client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
+    async def _is_bird_related(self, description: str) -> bool:
+        """Quick Haiku check: is this about birds? Returns True if yes."""
+        try:
+            response = await self._client.messages.create(
+                model=GUARDRAIL_MODEL,
+                max_tokens=10,
+                messages=[
+                    {"role": "user", "content": f"{GUARDRAIL_PROMPT}\n\n{description}"},
+                ],
+            )
+            text = next(
+                (b.text for b in response.content if isinstance(b, TextBlock)),
+                "YES",
+            )
+            return "YES" in text.upper()
+        except Exception as e:
+            logger.warning(f"Guardrail check failed, allowing request: {e}")
+            return True  # fail open
+
     async def identify(
         self,
         description: str,
@@ -268,6 +286,14 @@ class BirdAgent:
                 "status": "started",
             },
         )
+
+        # Guardrail: reject non-bird queries cheaply via Haiku
+        if not await self._is_bird_related(description):
+            logger.info(
+                "Non-bird query rejected by guardrail",
+                extra={"operation": "bird_agent_identify", "status": "rejected"},
+            )
+            return dict(NOT_BIRD_RESPONSE)
 
         # Build user message
         user_message = (
@@ -288,7 +314,7 @@ class BirdAgent:
                 iterations = iteration + 1
 
                 response = await self._client.messages.create(
-                    model=MODEL,
+                    model=AGENT_MODEL,
                     max_tokens=16000,
                     system=SYSTEM_PROMPT,
                     tools=TOOLS,

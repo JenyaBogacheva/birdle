@@ -67,18 +67,6 @@ class TestExecuteTool:
             mock.get_regional_birds.assert_called_once_with(region="US-NY", days=7)
             assert result == {"species_observed": []}
 
-    async def test_get_species_image_found(self):
-        with patch("services.backend.app.helpers.bird_agent.ebird_client") as mock:
-            mock.get_species_image = AsyncMock(return_value={"image_url": "http://img.jpg"})
-            result = await _execute_tool("get_species_image", {"species_code": "norcar"})
-            assert result["image_url"] == "http://img.jpg"
-
-    async def test_get_species_image_not_found(self):
-        with patch("services.backend.app.helpers.bird_agent.ebird_client") as mock:
-            mock.get_species_image = AsyncMock(return_value=None)
-            result = await _execute_tool("get_species_image", {"species_code": "unknown"})
-            assert result == {"error": "No image found"}
-
     async def test_web_search(self):
         with patch("services.backend.app.helpers.bird_agent.web_search_client") as mock:
             mock.search = AsyncMock(return_value=[{"title": "Bird info", "content": "details"}])
