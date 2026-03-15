@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .helpers.ebird_client import ebird_client
 from .routes import health, identify
 from .settings import settings
 
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.app_name}")
     logger.info(f"Debug mode: {settings.debug}")
     yield
+    await ebird_client.close()
     logger.info(f"Shutting down {settings.app_name}")
 
 

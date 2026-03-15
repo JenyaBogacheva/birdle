@@ -24,6 +24,11 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
 
     def __init__(self) -> None:
         self._timeout = httpx.Timeout(TIMEOUT)
+        self._client = httpx.AsyncClient(timeout=self._timeout)
+
+    async def close(self) -> None:
+        """Close the shared HTTP client."""
+        await self._client.aclose()
 
     async def get_regional_birds(
         self, region: str = "US", days: int = 14, max_results: int = 50
@@ -46,10 +51,9 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
             headers = {"X-eBirdApiToken": settings.ebird_token}
             params = {"back": days}
 
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.get(url, headers=headers, params=params)
-                resp.raise_for_status()
-                data = resp.json()
+            resp = await self._client.get(url, headers=headers, params=params)
+            resp.raise_for_status()
+            data = resp.json()
 
             # Group observations by species and count
             species_map: dict[str, dict[str, Any]] = {}
@@ -120,10 +124,9 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
                 "count": 1,
             }
 
-            async with httpx.AsyncClient(timeout=self._timeout) as client:
-                resp = await client.get(f"{MACAULAY_API_BASE}/search", params=params)
-                resp.raise_for_status()
-                data = resp.json()
+            resp = await self._client.get(f"{MACAULAY_API_BASE}/search", params=params)
+            resp.raise_for_status()
+            data = resp.json()
 
             results_content = data.get("results", {}).get("content", [])
             if not results_content:

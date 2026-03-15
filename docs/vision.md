@@ -65,20 +65,15 @@ Architecture principles:
 # Request from SPA
 ObservationInput = {
     "description": str,
-    "location": Optional[str],
+    "location": str,       # required for regional bird identification
     "observed_at": Optional[str],
-}
-
-# Traits returned by MCP helper
-TraitExtraction = {
-    "traits": Dict[str, str],
-    "confidence": float,
 }
 
 # Response envelope
 RecommendationResponse = {
     "message": str,
-    "top_species": Optional[Dict[str, str]],  # scientific/common name, range link
+    "top_species": Optional[SpeciesInfo],  # scientific/common name, image, range link
+    "alternate_species": list[SpeciesInfo],
     "clarification": Optional[str],
 }
 ```
@@ -95,10 +90,10 @@ async def identify_bird(payload: ObservationInput) -> RecommendationResponse:
     messages = [system_prompt, user_message(payload)]
     while tool_calls_remaining > 0:
         response = anthropic.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             messages=messages,
             tools=[get_regional_birds, get_species_image, web_search],
-            thinking={"type": "enabled", "budget_tokens": 2048},
+            thinking={"type": "adaptive"},
         )
         if response has tool_use blocks:
             execute tools, append results to messages
@@ -116,7 +111,7 @@ Principles:
 
 ### 7. Monitoring & Logging
 - Use Python `logging` to stdout with `info()` per LLM call (tokens, latency).
-- Provide `/health` that pings eBird and OpenAI once; cache timestamp in memory.
+- Provide `/health` endpoint; cache timestamp in memory.
 - Review logs manually; defer dashboards until after MVP launch.
 
 ### 8. Usage Scenarios

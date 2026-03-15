@@ -332,12 +332,15 @@ class BirdAgent:
                 messages.append({"role": "user", "content": cast(Any, tool_results)})
 
             latency_ms = (time.time() - start_time) * 1000
+            usage = response.usage if response else None
             logger.info(
                 "Bird agent completed",
                 extra={
                     "operation": "bird_agent_identify",
                     "total_latency_ms": round(latency_ms, 2),
                     "iterations": iterations,
+                    "input_tokens": usage.input_tokens if usage else 0,
+                    "output_tokens": usage.output_tokens if usage else 0,
                     "status": "success",
                 },
             )

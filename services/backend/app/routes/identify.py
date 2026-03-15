@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import time
+from urllib.parse import quote_plus
 
 from fastapi import APIRouter, HTTPException
 
@@ -20,11 +21,10 @@ router = APIRouter(prefix="/api", tags=["identification"])
 def _build_species_info(data: dict) -> SpeciesInfo:
     """Build SpeciesInfo from agent result dict."""
     common_name = data.get("common_name", "Unknown")
-    search_name = common_name.replace(" ", "+")
     return SpeciesInfo(
         scientific_name=data.get("scientific_name", "Unknown"),
         common_name=common_name,
-        range_link=f"https://ebird.org/explore?q={search_name}",
+        range_link=f"https://ebird.org/explore?q={quote_plus(common_name)}",
         confidence=data.get("confidence"),
         reasoning=data.get("reasoning"),
         image_url=data.get("image_url"),

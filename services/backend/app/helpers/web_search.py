@@ -5,7 +5,7 @@ Tavily web search client for supplementary bird identification info.
 import logging
 import time
 
-from tavily import TavilyClient
+from tavily import AsyncTavilyClient
 
 from ..settings import settings
 
@@ -16,7 +16,7 @@ class WebSearchClient:
     """Thin wrapper around Tavily SDK with graceful error handling."""
 
     def __init__(self) -> None:
-        self._client = TavilyClient(api_key=settings.tavily_api_key)
+        self._client = AsyncTavilyClient(api_key=settings.tavily_api_key)
 
     async def search(self, query: str, max_results: int = 5) -> list[dict]:
         """
@@ -27,8 +27,7 @@ class WebSearchClient:
         """
         start_time = time.time()
         try:
-            # Tavily SDK is synchronous; fast enough to call inline
-            response = self._client.search(query=query, max_results=max_results)
+            response = await self._client.search(query=query, max_results=max_results)
             results = [
                 {
                     "title": r.get("title", ""),
