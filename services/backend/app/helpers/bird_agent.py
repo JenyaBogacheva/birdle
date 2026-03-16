@@ -474,7 +474,7 @@ class BirdAgent:
                                 yield {"type": "thinking", "content": delta.thinking}
                             # Text deltas are part of the final JSON — don't stream
 
-                    final_message = stream.get_final_message()
+                    final_message = await stream.get_final_message()
 
                 # Check if done
                 if final_message.stop_reason == "end_turn":
