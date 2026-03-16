@@ -34,6 +34,24 @@ def mock_bird_agent(monkeypatch):
 
 
 @pytest.fixture
+def mock_bird_agent_stream(monkeypatch):
+    """Mock the bird_agent.identify_stream method.
+
+    Use ``mock.side_effect = my_async_gen_func`` in tests – the mock
+    directly calls the async-generator function so the result is an
+    async iterator (not a coroutine wrapping one).
+    """
+    from unittest.mock import MagicMock
+
+    mock = MagicMock()
+    monkeypatch.setattr(
+        "services.backend.app.routes.identify.bird_agent.identify_stream",
+        mock,
+    )
+    return mock
+
+
+@pytest.fixture
 def sample_agent_result():
     """Sample successful identification result from the agent."""
     return {
