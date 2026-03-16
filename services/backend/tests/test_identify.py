@@ -1,55 +1,116 @@
-"""
-Tests for bird identification endpoint.
-"""
-
-from fastapi.testclient import TestClient
-
-from services.backend.app.main import app
-
-client = TestClient(app)
+"""Tests for the identify endpoint."""
 
 
-def test_health_endpoint():
-    """Test that health endpoint returns ok status."""
-    response = client.get("/health")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["status"] == "ok"
-    assert "timestamp" in data
-    assert data["app_name"] == "Birdle AI"
+class TestHealthEndpoint:
+    def test_health_check(self, client):
+        response = client.get("/health")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+
+    def test_root_endpoint(self, client):
+        response = client.get("/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "running"
 
 
-def test_identify_endpoint_returns_stubbed_response():
-    """Test that identify endpoint returns valid response (live API)."""
-    payload = {
-        "description": "Small red bird with black mask and crest",
-        "location": "New York, NY",
-        "observed_at": "Today morning",
-    }
-    response = client.post("/api/identify", json=payload)
-    assert response.status_code == 200
+class TestIdentifyEndpoint:
+    def test_identify_success(self, client, mock_bird_agent, sample_agent_result):
+        mock_bird_agent.return_value = sample_agent_result
+        response = client.post(
+            "/api/identify",
+            json={"description": "bright red bird", "location": "New York"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"]
+        assert data["top_species"]["common_name"] == "Northern Cardinal"
+        mock_bird_agent.assert_called_once_with(
+            description="bright red bird",
+            location="New York",
+            observed_at=None,
+        )
 
-    data = response.json()
-    assert "message" in data
-    assert "top_species" in data
-    # Live API response may vary, just check structure
-    assert "common_name" in data["top_species"]
-    assert "scientific_name" in data["top_species"]
-    # Clarification may or may not be present depending on LLM response
-    assert "clarification" in data
+    def test_identify_missing_description(self, client):
+        response = client.post(
+            "/api/identify",
+            json={"location": "New York"},
+        )
+        assert response.status_code == 422
 
+    def test_identify_missing_location(self, client):
+        response = client.post(
+            "/api/identify",
+            json={"description": "red bird"},
+        )
+        assert response.status_code == 422  # location is now required
 
-def test_identify_endpoint_requires_description():
-    """Test that identify endpoint requires description field."""
-    payload = {}
-    response = client.post("/api/identify", json=payload)
-    assert response.status_code == 422  # Validation error
+    def test_identify_with_observed_at(self, client, mock_bird_agent, sample_agent_result):
+        mock_bird_agent.return_value = sample_agent_result
+        response = client.post(
+            "/api/identify",
+            json={
+                "description": "red bird",
+                "location": "New York",
+                "observed_at": "morning",
+            },
+        )
+        assert response.status_code == 200
+        mock_bird_agent.assert_called_once_with(
+            description="red bird",
+            location="New York",
+            observed_at="morning",
+        )
 
+    def test_identify_agent_error(self, client, mock_bird_agent):
+        mock_bird_agent.side_effect = Exception("Agent crashed")
+        response = client.post(
+            "/api/identify",
+            json={"description": "red bird", "location": "New York"},
+        )
+        assert response.status_code == 500
 
-def test_identify_endpoint_accepts_minimal_payload():
-    """Test that identify endpoint requires location."""
-    payload = {"description": "A bird"}
-    response = client.post("/api/identify", json=payload)
-    # Location is now required, should return 400
-    assert response.status_code == 400
-    assert "Location is required" in response.json()["detail"]
+    def test_identify_no_match(self, client, mock_bird_agent):
+        mock_bird_agent.return_value = {
+            "message": "I couldn't identify this bird.",
+            "top_species": None,
+            "alternate_species": [],
+            "clarification": "Can you describe the size?",
+        }
+        response = client.post(
+            "/api/identify",
+            json={"description": "something flew by", "location": "London"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["top_species"] is None
+        assert data["clarification"]
+
+    def test_identify_multiple_alternates(self, client, mock_bird_agent, sample_agent_result):
+        sample_agent_result["alternate_species"].append(
+            {
+                "scientific_name": "Piranga olivacea",
+                "common_name": "Scarlet Tanager",
+                "confidence": "low",
+                "reasoning": "Possible but unlikely at feeders.",
+            }
+        )
+        mock_bird_agent.return_value = sample_agent_result
+        response = client.post(
+            "/api/identify",
+            json={"description": "red bird", "location": "New York"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["alternate_species"]) == 2
+
+    def test_identify_range_link_generated(self, client, mock_bird_agent, sample_agent_result):
+        mock_bird_agent.return_value = sample_agent_result
+        response = client.post(
+            "/api/identify",
+            json={"description": "red bird", "location": "New York"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "ebird.org/explore" in data["top_species"]["range_link"]

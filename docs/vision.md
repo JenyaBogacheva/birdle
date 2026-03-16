@@ -2,8 +2,8 @@
 
 ### 1. Technologies
 - **Frontend**: React + Vite (TypeScript) with Tailwind for quick styling.
-- **Backend**: Single FastAPI app (Python) that serves REST + MCP endpoints.
-- **AI**: OpenAI ChatGPT (GPT-4o/GPT-4.1) for reasoning; MCP calls the eBird API.
+- **Backend**: Single FastAPI app (Python) that serves REST endpoints.
+- **AI**: Anthropic Claude Sonnet with extended thinking for agentic reasoning; direct eBird API calls for regional data; Tavily for web search.
 - **Tooling**: pnpm for frontend deps, Poetry for Python, uvicorn for local runs.
 
 ### 2. Development Principles
@@ -16,19 +16,18 @@
 ### 3. Project Structure
 
 ```
-birds/
+birdle/
 ├── frontend/             # React + Vite SPA
 │   ├── public/
 │   └── src/              # components/, pages/
 ├── services/
 │   └── backend/
 │       └── app/
-│           ├── main.py   # FastAPI entry + MCP wiring
+│           ├── main.py   # FastAPI entry
 │           ├── routes/   # HTTP endpoints
 │           ├── schemas/  # Pydantic models
-│           └── mcp/      # eBird helpers
+│           └── helpers/  # Bird agent, eBird client, web search
 ├── configs/
-│   ├── prompts/
 │   └── settings.example.env
 ├── docs/                 # vision, ADRs, product idea
 ├── pnpm-workspace.yaml
@@ -39,21 +38,23 @@ birds/
 ### 4. Project Architecture
 
 ```
-┌─────────────┐   HTTPS   ┌─────────────────────────────┐
-│ Browser SPA │ ─────────▶│ FastAPI App (REST + MCP)    │
-└─────────────┘◀─────────┤                             │
-                          ├─────────┐                   │
-                          │ prompt  │                   │
-                          ▼         │ MCP call
-                ┌──────────────────────┐        ┌───────────────┐
-                │ OpenAI ChatGPT API   │◀──────▶│ eBird API     │
-                └──────────────────────┘        └───────────────┘
+┌─────────────┐   HTTPS   ┌──────────────────────────────────┐
+│ Browser SPA │ ─────────▶│ FastAPI App (REST)                │
+└─────────────┘◀─────────┤                                  │
+                          │  Bird ID Agent                    │
+                          │  (Claude Sonnet + extended thinking)
+                          │     │                             │
+                          │     ├── get_regional_birds → eBird API
+                          │     ├── get_species_image  → Macaulay Library
+                          │     └── web_search         → Tavily API
+                          └──────────────────────────────────┘
 
-Observability: print key events to stdout for manual review.
+Observability: structured logging to stdout for manual review.
 ```
 
 Architecture principles:
-- Linear flow: SPA ➝ FastAPI ➝ LLM/eBird ➝ Response.
+- Agentic flow: SPA -> FastAPI -> Claude agent (with tools) -> Response.
+- Agent decides what data to fetch (eBird, images, web search).
 - Stateless handling: each request contains needed context.
 - In-memory only: no database, temporary structures per call.
 - Single process: eliminate cross-service coordination.
@@ -64,20 +65,15 @@ Architecture principles:
 # Request from SPA
 ObservationInput = {
     "description": str,
-    "location": Optional[str],
+    "location": str,       # required for regional bird identification
     "observed_at": Optional[str],
-}
-
-# Traits returned by MCP helper
-TraitExtraction = {
-    "traits": Dict[str, str],
-    "confidence": float,
 }
 
 # Response envelope
 RecommendationResponse = {
     "message": str,
-    "top_species": Optional[Dict[str, str]],  # scientific/common name, range link
+    "top_species": Optional[SpeciesInfo],  # scientific/common name, image, range link
+    "alternate_species": list[SpeciesInfo],
     "clarification": Optional[str],
 }
 ```
@@ -90,29 +86,32 @@ Principles:
 ### 6. LLM Flow
 
 ```python
-def identify_bird(payload: ObservationInput) -> RecommendationResponse:
-    traits = mcp_lookup(payload["description"], payload.get("location"))
-    prompt = build_prompt(payload, traits)
-
-    reply = openai_client.chat(prompt, temperature=0.4)
-
-    if traits.low_confidence():
-        return {"message": reply.summary, "clarification": reply.question}
-
-    return {
-        "message": reply.summary,
-        "top_species": reply.top_species,
-    }
+async def identify_bird(payload: ObservationInput) -> RecommendationResponse:
+    messages = [system_prompt, user_message(payload)]
+    while tool_calls_remaining > 0:
+        response = anthropic.messages.create(
+            model="claude-sonnet-4-6",
+            messages=messages,
+            tools=[get_regional_birds, get_species_image, web_search],
+            thinking={"type": "adaptive"},
+        )
+        if response has tool_use blocks:
+            execute tools, append results to messages
+        else:
+            break  # final answer
+    return parse_structured_output(response)
 ```
 
 Principles:
-- Short prompt with latest description + trait summary.
-- One retry on transient OpenAI errors.
-- Basic moderation via OpenAI moderation endpoint before returning text.
+- Agent decides what data to fetch based on the description.
+- Tools: eBird regional data, Macaulay Library images, Tavily web search.
+- Max 8 tool calls per request; 60s total timeout.
+- One retry on transient API errors.
+- Content moderation via Claude's built-in safety + explicit check.
 
 ### 7. Monitoring & Logging
 - Use Python `logging` to stdout with `info()` per LLM call (tokens, latency).
-- Provide `/health` that pings eBird and OpenAI once; cache timestamp in memory.
+- Provide `/health` endpoint; cache timestamp in memory.
 - Review logs manually; defer dashboards until after MVP launch.
 
 ### 8. Usage Scenarios
@@ -127,7 +126,7 @@ Principles:
 - Secrets via environment variables locally and in host dashboards.
 
 ### 10. Configuration
-- `settings.py` (Pydantic) loads `OPENAI_API_KEY`, `EBIRD_TOKEN`, `FRONTEND_BASE_URL`.
+- `settings.py` (Pydantic) loads `ANTHROPIC_API_KEY`, `TAVILY_API_KEY`, `EBIRD_TOKEN`, `FRONTEND_BASE_URL`.
 - `.env.example` documents required keys; copy to `.env.local` for local runs.
-- Prompts stored as plain text under `configs/prompts/` and loaded at startup.
+- System prompt lives in `services/backend/app/helpers/bird_agent.py`.
 - Frontend reads `VITE_API_BASE_URL` from `.env.local` or hosting UI.

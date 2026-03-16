@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .helpers.ebird_client import ebird_client
 from .routes import health, identify
 from .settings import settings
 
@@ -26,6 +27,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.app_name}")
     logger.info(f"Debug mode: {settings.debug}")
     yield
+    await ebird_client.close()
     logger.info(f"Shutting down {settings.app_name}")
 
 
@@ -38,15 +40,13 @@ app = FastAPI(
 )
 
 # Configure CORS
+origins = [settings.frontend_base_url]
+if settings.debug:
+    origins += ["http://localhost:5173", "http://localhost:5174"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.frontend_base_url,
-        "http://localhost:5173",
-        "http://localhost:5174",  # Alternative port
-        "http://10.42.0.60:5173",  # Server IP
-        "http://jenya:5173",  # Server hostname
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,12 +1,12 @@
-# 🦜 Birdle AI ✨🦩
+# Birdle AI
 
-**Full-stack AI application built from scratch in ~10 days** • Natural language → GPT-4o-mini → Regional eBird data → Ranked species with images
+**Full-stack AI application built from scratch in ~10 days** -- Natural language -> Claude Sonnet agent -> Regional eBird data + Tavily web search -> Ranked species with images
 
-**Live demo:** https://birdle-ai.vercel.app/ | **Key skills:** React, TypeScript, Python, FastAPI, OpenAI, MCP, Testing, DevOps
+**Live demo:** https://birdle-ai.vercel.app/ | **Key skills:** React, TypeScript, Python, FastAPI, Anthropic Claude, eBird API, Tavily, Testing, DevOps
 
 ---
 
-## 🚀 Live Demo
+## Live Demo
 
 **Try it here:** https://birdle-ai.vercel.app/
 
@@ -18,17 +18,18 @@ See `DEMO.md` for more test cases and what to expect.
 
 ---
 
-## 🎯 What This Is
+## What This Is
 
-An MVP demonstrating LLM-powered bird identification that:
-- ✅ Takes natural language descriptions
-- ✅ Queries live eBird regional data via MCP
-- ✅ Uses GPT-4o-mini for reasoning and confidence assessment
-- ✅ Returns ranked species with high-quality images
-- ✅ Works globally (all continents)
-- ✅ Handles uncertainty gracefully with clarification requests
+An MVP demonstrating agentic bird identification that:
+- Takes natural language descriptions
+- Uses Claude Sonnet with extended thinking for reasoning and confidence assessment
+- Queries live eBird regional data via direct API calls
+- Searches the web via Tavily for unusual species or behavioral details
+- Returns ranked species with high-quality images
+- Works globally (all continents)
+- Handles uncertainty gracefully with clarification requests
 
-Built in 4 iterations following MVP-first principles.
+Built in 6 iterations following MVP-first principles.
 
 ## Setup
 
@@ -74,10 +75,14 @@ The pre-commit hooks will automatically run:
 
 ## Environment Variables
 
-Copy `.env.example` files and configure:
+Copy `.env.example` to `.env.local` and configure:
 
-**Backend:** `configs/settings.example.env` → `.env.local`
-**Frontend:** `frontend/.env.example` → `frontend/.env.local`
+Required keys:
+- `ANTHROPIC_API_KEY` -- Anthropic API key for Claude Sonnet
+- `TAVILY_API_KEY` -- Tavily API key for web search
+- `EBIRD_TOKEN` -- eBird API token for regional bird data
+
+Frontend: `frontend/.env.example` -> `frontend/.env.local`
 
 ## Development
 
@@ -100,13 +105,13 @@ birdle/
 │           ├── main.py   # FastAPI entry
 │           ├── routes/   # API endpoints
 │           ├── schemas/  # Pydantic models
-│           └── mcp/      # eBird helpers
+│           └── helpers/  # Bird agent, eBird client, web search
 ├── configs/              # Configuration templates
 ├── docs/                 # Documentation
 └── pyproject.toml        # Python dependencies
 ```
 
-## 📊 Quality Metrics
+## Quality Metrics
 
 **Test Coverage:**
 ```bash
@@ -120,36 +125,39 @@ $ poetry run mypy services/backend/app --ignore-missing-imports
 Success: no issues found in 13 source files
 ```
 
-- ✅ **44 passing tests** (unit + integration)
-- ✅ **Full type checking** (TypeScript + mypy)
-- ✅ **Structured logging** (latency tracking, token usage)
-- ✅ **Error handling** (retries, timeouts, fallbacks)
-- ✅ **Content moderation** (OpenAI moderation API)
-- ✅ **Global coverage** (eBird regions worldwide)
-- ✅ **Pre-commit hooks** (Ruff, Black, ESLint enforced)
+- **44 passing tests** (unit + integration)
+- **Full type checking** (TypeScript + mypy)
+- **Structured logging** (latency tracking, token usage)
+- **Error handling** (retries, timeouts, fallbacks)
+- **Content moderation** (Claude built-in safety)
+- **Global coverage** (eBird regions worldwide)
+- **Pre-commit hooks** (Ruff, Black, ESLint enforced)
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 User Input (React SPA)
-    ↓
+    |
 FastAPI Backend
-    ↓
-├─→ Content Moderation (OpenAI)
-├─→ eBird MCP Server (regional bird data)
-└─→ GPT-4o-mini (identification + confidence)
-    ↓
+    |
+    --> Bird ID Agent (Claude Sonnet + extended thinking)
+         |
+         |-- get_regional_birds  (direct eBird API v2)
+         |-- get_species_image   (Macaulay Library)
+         |-- web_search          (Tavily API)
+    |
 Response with species, images, reasoning
 ```
 
 **Key principles:**
-- Stateless design (scales horizontally)
+- Agentic design (LLM decides what data to fetch)
+- Stateless (scales horizontally)
 - Linear request flow (no background workers)
 - In-memory only (no database for MVP)
 - One retry policy (transient errors)
 - Graceful degradation (partial results on failures)
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 **Frontend:**
 - React 18 + Vite (fast dev + build)
@@ -159,21 +167,21 @@ Response with species, images, reasoning
 **Backend:**
 - FastAPI (async Python, OpenAPI docs)
 - Poetry (dependency management)
-- MCP (Model Context Protocol for eBird)
 - Pydantic (data validation)
 
 **AI & Data:**
-- OpenAI GPT-4o-mini (cost-effective reasoning)
+- Anthropic Claude Sonnet (agentic reasoning with extended thinking)
+- Tavily Search API (web search for LLM agents)
 - eBird API v2 (Cornell Lab, real-time observations)
 - Macaulay Library (Cornell Lab, species images)
 
 **Why these choices:**
-- Familiar stack → fast development
-- Minimal abstractions → easy to understand
-- Free/cheap APIs → low-cost MVP
-- Standard protocols → maintainable
+- Familiar stack -> fast development
+- Minimal abstractions -> easy to understand
+- Free/cheap APIs -> low-cost MVP
+- Standard protocols -> maintainable
 
-## 🚢 Deployment
+## Deployment
 
 See `docs/deployment-guide.md` for step-by-step instructions.
 
@@ -184,13 +192,15 @@ See `docs/deployment-guide.md` for step-by-step instructions.
 
 Total: ~45 minutes to go live on free tiers.
 
-## 📈 Current Status
+## Current Status
 
 | Iteration | Feature | Status |
 |-----------|---------|--------|
-| 1 | End-to-end stub | ✅ Complete |
-| 2 | eBird + OpenAI integration | ✅ Complete |
-| 3 | Multi-species + images | ✅ Complete |
-| 4 | Resilience + observability | ✅ Complete |
+| 1 | End-to-end stub | Complete |
+| 2 | eBird + OpenAI integration | Complete |
+| 3 | Multi-species + images | Complete |
+| 4 | Resilience + observability | Complete |
+| 5 | Retro Gen Z UI rebrand | Complete |
+| 6 | Agentic architecture (Claude + Tavily) | Complete |
 
 **Ready for:** Production deployment and user testing
