@@ -214,6 +214,24 @@ async def _execute_tool(name: str, input_data: dict[str, Any]) -> Any:
         return {"error": str(e)}
 
 
+def _tool_result_summary(tool_name: str, input_data: dict[str, Any], result: Any) -> str:
+    """Generate a human-readable summary of a tool call result."""
+    if isinstance(result, dict) and "error" in result:
+        return f"Tool {tool_name} failed: {result['error']}"
+
+    if tool_name == "get_regional_birds":
+        species = result.get("species_observed", []) if isinstance(result, dict) else []
+        region = input_data.get("region", "unknown region")
+        return f"Found {len(species)} species in {region}"
+
+    if tool_name == "web_search":
+        count = len(result) if isinstance(result, list) else 0
+        query = input_data.get("query", "")
+        return f"Found {count} results for '{query}'"
+
+    return f"Tool {tool_name} completed"
+
+
 def _parse_response(response: anthropic.types.Message) -> dict[str, Any]:
     """Extract and parse the JSON identification result from Claude's response."""
     for block in response.content:

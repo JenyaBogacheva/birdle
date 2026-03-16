@@ -4,7 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from anthropic.types import TextBlock
 
-from services.backend.app.helpers.bird_agent import _execute_tool, _parse_response
+from services.backend.app.helpers.bird_agent import (
+    _execute_tool,
+    _parse_response,
+    _tool_result_summary,
+)
 
 
 class TestParseResponse:
@@ -51,6 +55,33 @@ class TestParseResponse:
         result = _parse_response(response)
         assert result["top_species"] is None
         assert "clarification" in result
+
+
+class TestToolResultSummary:
+    def test_regional_birds_summary(self):
+        result = {"species_observed": [{"common_name": "Robin"}, {"common_name": "Sparrow"}]}
+        assert _tool_result_summary("get_regional_birds", {"region": "US-NY"}, result) == "Found 2 species in US-NY"
+
+    def test_regional_birds_empty(self):
+        result = {"species_observed": []}
+        assert _tool_result_summary("get_regional_birds", {"region": "AU-NSW"}, result) == "Found 0 species in AU-NSW"
+
+    def test_web_search_summary(self):
+        result = [{"title": "a"}, {"title": "b"}, {"title": "c"}]
+        assert _tool_result_summary("web_search", {"query": "red bird NY"}, result) == "Found 3 results for 'red bird NY'"
+
+    def test_web_search_empty(self):
+        result = []
+        assert _tool_result_summary("web_search", {"query": "rare bird"}, result) == "Found 0 results for 'rare bird'"
+
+    def test_unknown_tool_summary(self):
+        summary = _tool_result_summary("unknown_tool", {}, {})
+        assert "unknown_tool" in summary.lower() or "completed" in summary.lower()
+
+    def test_error_result_summary(self):
+        result = {"error": "timeout"}
+        summary = _tool_result_summary("get_regional_birds", {"region": "XX"}, result)
+        assert "error" in summary.lower() or "failed" in summary.lower()
 
 
 class TestExecuteTool:
