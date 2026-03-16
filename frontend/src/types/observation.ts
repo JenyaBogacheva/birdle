@@ -24,3 +24,12 @@ export interface RecommendationResponse {
   alternate_species?: SpeciesInfo[];
   clarification?: string;
 }
+
+export type StreamEvent =
+  | { type: 'status'; message: string }
+  | { type: 'thinking'; content: string }
+  | { type: 'tool_call'; tool: string; input: Record<string, unknown> }
+  | { type: 'tool_result'; tool: string; summary: string }
+  | { type: 'result'; data: RecommendationResponse }
+  | { type: 'error'; message: string }
+  | { type: 'done' };
