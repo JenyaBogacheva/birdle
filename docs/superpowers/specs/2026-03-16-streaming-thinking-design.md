@@ -80,7 +80,8 @@ async def identify_bird_stream(observation: ObservationInput):
                 yield f"data: {json.dumps(event)}\n\n"
             yield f'data: {json.dumps({"type": "done"})}\n\n'
         except Exception as e:
-            yield f'data: {json.dumps({"type": "error", "message": str(e)})}\n\n'
+            logger.error(f"Streaming error: {e}", exc_info=True)
+            yield f'data: {json.dumps({"type": "error", "message": "An unexpected error occurred. Please try again."})}\n\n'
             yield f'data: {json.dumps({"type": "done"})}\n\n'
 
     return StreamingResponse(
@@ -120,7 +121,9 @@ Async generator that yields event dicts. Uses Anthropic's `client.messages.strea
 7. Fetch images in parallel (same as current `_build_species_info`)
 8. Yield `result` with complete `RecommendationResponse`
 
-**Error handling:** Wrap entire generator in try/except. On any exception, yield `error` event. The `done` event is emitted by the route handler, not the generator itself.
+**Timeout:** The route handler checks elapsed time between yields (belt-and-suspenders). Per-iteration stream hangs are guarded by the Anthropic SDK's own `timeout` parameter (set to 60s), which raises `APITimeoutError` if a single API call stalls, propagating up through the generator.
+
+**Error handling:** Wrap entire generator in try/except. On any exception, yield `error` event with a sanitized message (log the real error server-side). The `done` event is emitted by the route handler, not the generator itself.
 
 **Existing `identify()` method stays unchanged** — used by the non-streaming endpoint.
 
@@ -171,6 +174,8 @@ export async function identifyBirdStream(
   const decoder = new TextDecoder();
   let buffer = '';
 
+  let receivedDone = false;
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -184,8 +189,13 @@ export async function identifyBirdStream(
       if (line.startsWith('data: ')) {
         const event = JSON.parse(line.slice(6)) as StreamEvent;
         onEvent(event);
+        if (event.type === 'done') receivedDone = true;
       }
     }
+  }
+
+  if (!receivedDone) {
+    throw new Error('Stream ended unexpectedly');
   }
 }
 ```
