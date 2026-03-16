@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import time
+from collections.abc import AsyncIterator
 from typing import Any, cast
 
 import anthropic
@@ -406,6 +407,163 @@ class BirdAgent:
                 },
             )
             return dict(FALLBACK_RESPONSE)
+
+    async def identify_stream(
+        self,
+        description: str,
+        location: str,
+        observed_at: str | None = None,
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Run bird identification with streaming events.
+
+        Yields event dicts with a 'type' field:
+        - status: {"type": "status", "message": str}
+        - thinking: {"type": "thinking", "content": str}
+        - tool_call: {"type": "tool_call", "tool": str, "input": dict}
+        - tool_result: {"type": "tool_result", "tool": str, "summary": str}
+        - result: {"type": "result", "data": dict}
+        - error: {"type": "error", "message": str}
+        """
+        start_time = time.time()
+
+        try:
+            # Step 1: Guardrail
+            yield {"type": "status", "message": "Checking your description..."}
+
+            if not await self._is_bird_related(description):
+                logger.info(
+                    "Non-bird query rejected by guardrail (streaming)",
+                    extra={"operation": "bird_agent_stream", "status": "rejected"},
+                )
+                yield {"type": "result", "data": dict(NOT_BIRD_RESPONSE)}
+                return
+
+            # Step 2: Build user message
+            yield {"type": "status", "message": "Looking up birds in your area..."}
+
+            user_message = (
+                f"I observed a bird...\n\n" f"Description: {description}\n" f"Location: {location}"
+            )
+            if observed_at:
+                user_message += f"\nObserved at: {observed_at}"
+
+            messages: list[MessageParam] = [
+                {"role": "user", "content": user_message},
+            ]
+
+            # Step 3: Agent loop with streaming
+            final_message = None
+            iterations = 0
+
+            for iteration in range(MAX_ITERATIONS):
+                iterations = iteration + 1
+
+                async with self._client.messages.stream(
+                    model=AGENT_MODEL,
+                    max_tokens=16000,
+                    system=SYSTEM_PROMPT,
+                    tools=TOOLS,
+                    thinking={"type": "adaptive"},
+                    messages=messages,
+                ) as stream:
+                    # Process streaming events
+                    async for event in stream:
+                        if hasattr(event, "type") and event.type == "content_block_delta":
+                            delta = event.delta
+                            if delta.type == "thinking_delta":
+                                yield {"type": "thinking", "content": delta.thinking}
+                            # Text deltas are part of the final JSON — don't stream
+
+                    final_message = stream.get_final_message()
+
+                # Check if done
+                if final_message.stop_reason == "end_turn":
+                    break
+
+                # Extract tool use blocks
+                tool_use_blocks = [b for b in final_message.content if isinstance(b, ToolUseBlock)]
+                if not tool_use_blocks:
+                    break
+
+                # Append assistant response to conversation
+                messages.append(
+                    {"role": "assistant", "content": cast(Any, final_message.content)},
+                )
+
+                # Execute tools and yield events
+                tool_results: list[dict[str, Any]] = []
+                for tool_block in tool_use_blocks:
+                    yield {
+                        "type": "tool_call",
+                        "tool": tool_block.name,
+                        "input": tool_block.input,
+                    }
+
+                    result = await _execute_tool(tool_block.name, tool_block.input)
+
+                    summary = _tool_result_summary(tool_block.name, tool_block.input, result)
+                    yield {
+                        "type": "tool_result",
+                        "tool": tool_block.name,
+                        "summary": summary,
+                    }
+
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_block.id,
+                            "content": (
+                                json.dumps(result)
+                                if isinstance(result, (dict, list))
+                                else str(result)
+                            ),
+                        }
+                    )
+
+                messages.append({"role": "user", "content": cast(Any, tool_results)})
+
+                if iteration < MAX_ITERATIONS - 1:
+                    yield {"type": "status", "message": "Narrowing it down..."}
+
+            latency_ms = (time.time() - start_time) * 1000
+            usage = final_message.usage if final_message else None
+            logger.info(
+                "Bird agent stream completed",
+                extra={
+                    "operation": "bird_agent_stream",
+                    "total_latency_ms": round(latency_ms, 2),
+                    "iterations": iterations,
+                    "input_tokens": usage.input_tokens if usage else 0,
+                    "output_tokens": usage.output_tokens if usage else 0,
+                    "status": "success",
+                },
+            )
+
+            if final_message is None:
+                yield {"type": "result", "data": dict(FALLBACK_RESPONSE)}
+                return
+
+            parsed = _parse_response(final_message)
+
+            # Yield parsed result — images are fetched by the route handler
+            # before constructing the final RecommendationResponse
+            yield {"type": "result", "data": parsed}
+
+        except Exception as e:
+            latency_ms = (time.time() - start_time) * 1000
+            logger.error(
+                f"Bird agent stream failed: {e}",
+                extra={
+                    "operation": "bird_agent_stream",
+                    "total_latency_ms": round(latency_ms, 2),
+                    "status": "error",
+                    "error_type": type(e).__name__,
+                },
+            )
+            yield {
+                "type": "error",
+                "message": "An unexpected error occurred. Please try again.",
+            }
 
 
 # Module-level singleton
