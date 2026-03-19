@@ -1,23 +1,24 @@
 /**
  * Home page with bird identification form and results.
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { BirdForm } from '../components/BirdForm';
 import { ResultPanel } from '../components/ResultPanel';
-import { identifyBird } from '../api/client';
-import type { ObservationInput, RecommendationResponse } from '../types/observation';
-
-type LoadingStage = 'analyzing' | 'fetching' | 'identifying' | null;
+import { identifyBird, identifyBirdStream } from '../api/client';
+import type { ObservationInput, RecommendationResponse, StreamEvent } from '../types/observation';
 
 export function Home() {
   const [result, setResult] = useState<RecommendationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingStage, setLoadingStage] = useState<LoadingStage>(null);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [thinkingText, setThinkingText] = useState('');
+  const [showThinking, setShowThinking] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [canRetry, setCanRetry] = useState(false);
   const timerRef = useRef<number | null>(null);
   const lastObservationRef = useRef<ObservationInput | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Timer effect for elapsed time during loading
   useEffect(() => {
@@ -41,46 +42,69 @@ export function Home() {
     };
   }, [isLoading]);
 
-  // Simulate loading stages (since backend is single call, we approximate timing)
-  useEffect(() => {
-    if (!isLoading) {
-      setLoadingStage(null);
-      return;
+  const handleStreamEvent = useCallback((event: StreamEvent) => {
+    switch (event.type) {
+      case 'status':
+        setStatusMessage(event.message);
+        break;
+      case 'thinking':
+        setThinkingText((prev) => prev + event.content);
+        break;
+      case 'result':
+        setResult(event.data);
+        break;
+      case 'error':
+        setError(event.message);
+        setCanRetry(true);
+        break;
+      case 'tool_call':
+        setStatusMessage(`Calling ${event.tool}...`);
+        break;
+      case 'tool_result':
+        setStatusMessage(event.summary);
+        break;
+      case 'done':
+        break;
     }
-
-    setLoadingStage('analyzing');
-    const timer1 = setTimeout(() => setLoadingStage('fetching'), 2000);
-    const timer2 = setTimeout(() => setLoadingStage('identifying'), 5000);
-
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-    };
-  }, [isLoading]);
+  }, []);
 
   const handleSubmit = async (observation: ObservationInput) => {
+    // Abort any in-flight stream
+    abortRef.current?.abort();
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+
     lastObservationRef.current = observation;
     setIsLoading(true);
     setError(null);
     setResult(null);
     setCanRetry(false);
+    setStatusMessage('');
+    setThinkingText('');
+    setShowThinking(false);
 
     try {
-      const response = await identifyBird(observation);
-      setResult(response);
-      setCanRetry(false);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : 'An unexpected error occurred. Please try again.';
-      setError(errorMessage);
-      // Allow retry for network errors or timeouts
-      setCanRetry(
-        errorMessage.includes('timeout') ||
-          errorMessage.includes('network') ||
-          errorMessage.includes('try again')
-      );
+      // Try streaming first
+      await identifyBirdStream(observation, handleStreamEvent, abortController.signal);
+    } catch {
+      // Fallback to non-streaming if stream fails
+      if (abortController.signal.aborted) return; // User cancelled
+      try {
+        setStatusMessage('Identifying your bird...');
+        const response = await identifyBird(observation);
+        setResult(response);
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : 'An unexpected error occurred. Please try again.';
+        setError(errorMessage);
+        setCanRetry(
+          errorMessage.includes('timeout') ||
+            errorMessage.includes('network') ||
+            errorMessage.includes('try again')
+        );
+      }
     } finally {
       setIsLoading(false);
     }
@@ -140,7 +164,7 @@ export function Home() {
             <BirdForm onSubmit={handleSubmit} isLoading={isLoading} />
           </div>
 
-          {/* Loading Indicator with Stages */}
+          {/* Loading Indicator with Streaming Status */}
           {isLoading && (
             <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
               <div className="flex flex-col items-center justify-center space-y-4">
@@ -149,43 +173,53 @@ export function Home() {
                   <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
                 </div>
 
-                {/* Loading Stage */}
+                {/* Status Message */}
                 <div className="text-center">
                   <p className="text-lg font-medium text-gray-900">
-                    {loadingStage === 'analyzing' &&
-                      'reading the vibes... 👀'}
-                    {loadingStage === 'fetching' &&
-                      'checking what\'s around... 🗺️'}
-                    {loadingStage === 'identifying' && 'got it! narrowing it down... 🎯'}
+                    {statusMessage || 'Starting...'}
                   </p>
                   <p className="text-sm text-gray-500 mt-2">
                     {elapsedTime > 0 && `${elapsedTime}s elapsed`}
                   </p>
                 </div>
-
-                {/* Progress Dots */}
-                <div className="flex space-x-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      loadingStage === 'analyzing'
-                        ? 'bg-pink-500'
-                        : 'bg-gray-300'
-                    }`}
-                  />
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      loadingStage === 'fetching' ? 'bg-orange-500' : 'bg-gray-300'
-                    }`}
-                  />
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      loadingStage === 'identifying'
-                        ? 'bg-yellow-500'
-                        : 'bg-gray-300'
-                    }`}
-                  />
-                </div>
               </div>
+
+              {/* Thinking Block (collapsible) */}
+              {thinkingText && (
+                <div className="mt-6 border-t pt-4">
+                  <button
+                    onClick={() => setShowThinking(!showThinking)}
+                    className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                  >
+                    <span className="text-xs">{showThinking ? '▼' : '▶'}</span>
+                    {showThinking ? 'Hide thinking' : 'Show thinking'}
+                  </button>
+                  {showThinking && (
+                    <div className="mt-2 p-3 bg-gray-50 rounded-lg text-sm text-gray-700 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                      {thinkingText}
+                      <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-0.5" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Thinking Block (persists after result) */}
+          {!isLoading && thinkingText && (result || error) && (
+            <div className="bg-white rounded-xl shadow-lg p-4 mb-4">
+              <button
+                onClick={() => setShowThinking(!showThinking)}
+                className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+              >
+                <span className="text-xs">{showThinking ? '▼' : '▶'}</span>
+                {showThinking ? 'Hide thinking' : 'Show thinking'}
+              </button>
+              {showThinking && (
+                <div className="mt-2 p-3 bg-gray-50 rounded-lg text-sm text-gray-700 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                  {thinkingText}
+                </div>
+              )}
             </div>
           )}
 
@@ -204,7 +238,7 @@ export function Home() {
           {/* Footer */}
           <div className="text-center mt-12 text-gray-600 text-sm">
             <p>
-              powered by fastapi, react, openai, and vibes ⚡✨
+              powered by fastapi, react, claude, and vibes ⚡✨
             </p>
           </div>
         </div>
