@@ -173,7 +173,7 @@ class TestIdentifyStream:
             )
         ]
         final_msg.usage = MagicMock(input_tokens=100, output_tokens=50)
-        mock_stream.get_final_message = MagicMock(return_value=final_msg)
+        mock_stream.get_final_message = AsyncMock(return_value=final_msg)
 
         # No streaming events (no thinking, no tool_use)
         async def empty_stream():
