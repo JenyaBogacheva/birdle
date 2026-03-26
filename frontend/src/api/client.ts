@@ -71,10 +71,14 @@ export async function identifyBirdStream(
     let buffer = '';
     let receivedDone = false;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+    let reading = true;
+    while (reading) {
+      const result = await reader.read();
+      if (result.done) {
+        reading = false;
+        break;
+      }
+      buffer += decoder.decode(result.value, { stream: true });
 
       const parts = buffer.split('\n\n');
       buffer = parts.pop() || '';
