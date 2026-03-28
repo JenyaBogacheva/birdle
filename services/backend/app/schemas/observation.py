@@ -2,6 +2,7 @@
 Pydantic schemas for bird observation data.
 """
 
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -25,6 +26,18 @@ class SpeciesInfo(BaseModel):
     reasoning: Optional[str] = Field(None, description="Reasoning for the identification")
     image_url: Optional[str] = Field(None, description="URL to species image from Macaulay Library")
     image_credit: Optional[str] = Field(None, description="Photographer credit")
+
+
+class CandidateStatus(str, Enum):
+    considering = "considering"
+    eliminated = "eliminated"
+
+
+class CandidateUpdate(BaseModel):
+    name: str
+    species_code: str
+    status: CandidateStatus
+    reason: Optional[str] = None
 
 
 class RecommendationResponse(BaseModel):
