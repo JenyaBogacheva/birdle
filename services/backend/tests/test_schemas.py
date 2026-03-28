@@ -26,6 +26,7 @@ def test_candidate_update_eliminated_with_reason():
 
 def test_candidate_update_invalid_status():
     import pytest
+
     with pytest.raises(Exception):
         CandidateUpdate(
             name="Test",
