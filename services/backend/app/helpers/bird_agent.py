@@ -213,7 +213,9 @@ FALLBACK_RESPONSE: dict[str, Any] = {
     "clarification": "Please describe the bird's size, colors, and behavior in more detail.",
 }
 
-MAX_ITERATIONS = 4
+MAX_ITERATIONS = 30  # kept for backwards compatibility; real limits are below
+MAX_DATA_TOOL_CALLS = 8
+MAX_UI_TOOL_CALLS = 20
 
 
 async def _execute_tool(name: str, input_data: dict[str, Any]) -> Any:
@@ -374,6 +376,8 @@ class BirdAgent:
         try:
             response: anthropic.types.Message | None = None
             iterations = 0
+            data_tool_calls = 0
+            ui_tool_calls = 0
 
             for iteration in range(MAX_ITERATIONS):
                 iterations = iteration + 1
@@ -401,9 +405,21 @@ class BirdAgent:
                     {"role": "assistant", "content": cast(Any, response.content)},
                 )
 
-                # Execute tools and collect results
+                # Execute tools and collect results; track budgets
                 tool_results: list[dict[str, Any]] = []
+                budget_exceeded = False
                 for tool_block in tool_use_blocks:
+                    if tool_block.name in UI_TOOL_NAMES:
+                        ui_tool_calls += 1
+                        if ui_tool_calls > MAX_UI_TOOL_CALLS:
+                            budget_exceeded = True
+                            break
+                    else:
+                        data_tool_calls += 1
+                        if data_tool_calls > MAX_DATA_TOOL_CALLS:
+                            budget_exceeded = True
+                            break
+
                     result = await _execute_tool(
                         tool_block.name,
                         tool_block.input,
@@ -421,6 +437,9 @@ class BirdAgent:
                     )
 
                 messages.append({"role": "user", "content": cast(Any, tool_results)})
+
+                if budget_exceeded or data_tool_calls >= MAX_DATA_TOOL_CALLS:
+                    break
 
             latency_ms = (time.time() - start_time) * 1000
             usage = response.usage if response else None
@@ -500,6 +519,8 @@ class BirdAgent:
             # Step 3: Agent loop with streaming
             final_message = None
             iterations = 0
+            data_tool_calls = 0
+            ui_tool_calls = 0
 
             for iteration in range(MAX_ITERATIONS):
                 iterations = iteration + 1
@@ -536,9 +557,21 @@ class BirdAgent:
                     {"role": "assistant", "content": cast(Any, final_message.content)},
                 )
 
-                # Execute tools and yield events
+                # Execute tools and yield events; track budgets
                 tool_results: list[dict[str, Any]] = []
+                budget_exceeded = False
                 for tool_block in tool_use_blocks:
+                    if tool_block.name in UI_TOOL_NAMES:
+                        ui_tool_calls += 1
+                        if ui_tool_calls > MAX_UI_TOOL_CALLS:
+                            budget_exceeded = True
+                            break
+                    else:
+                        data_tool_calls += 1
+                        if data_tool_calls > MAX_DATA_TOOL_CALLS:
+                            budget_exceeded = True
+                            break
+
                     yield {
                         "type": "tool_call",
                         "tool": tool_block.name,
@@ -568,8 +601,10 @@ class BirdAgent:
 
                 messages.append({"role": "user", "content": cast(Any, tool_results)})
 
-                if iteration < MAX_ITERATIONS - 1:
-                    yield {"type": "status", "message": "Narrowing it down..."}
+                if budget_exceeded or data_tool_calls >= MAX_DATA_TOOL_CALLS:
+                    break
+
+                yield {"type": "status", "message": "Narrowing it down..."}
 
             latency_ms = (time.time() - start_time) * 1000
             usage = final_message.usage if final_message else None

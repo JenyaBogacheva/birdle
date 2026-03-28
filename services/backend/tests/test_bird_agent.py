@@ -236,3 +236,17 @@ class TestUITools:
             ]
         })
         assert result == {"acknowledged": True}
+
+
+class TestToolBudget:
+    """Tests for two-tier tool budget (data vs UI tools)."""
+
+    def test_ui_tools_not_counted_against_data_budget(self):
+        """UI tool calls should not count toward MAX_ITERATIONS."""
+        from services.backend.app.helpers.bird_agent import UI_TOOL_NAMES, MAX_DATA_TOOL_CALLS, MAX_UI_TOOL_CALLS
+        assert MAX_DATA_TOOL_CALLS == 8
+        assert MAX_UI_TOOL_CALLS == 20
+        assert "detective_note" in UI_TOOL_NAMES
+        assert "update_candidates" in UI_TOOL_NAMES
+        assert "get_regional_birds" not in UI_TOOL_NAMES
+        assert "web_search" not in UI_TOOL_NAMES
