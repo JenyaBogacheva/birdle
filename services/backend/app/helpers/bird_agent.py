@@ -572,6 +572,11 @@ class BirdAgent:
                             budget_exceeded = True
                             break
 
+                    if tool_block.name == "detective_note":
+                        yield {"type": "detective_note", "message": tool_block.input["message"]}
+                    elif tool_block.name == "update_candidates":
+                        yield {"type": "candidates", "data": tool_block.input["candidates"]}
+
                     yield {
                         "type": "tool_call",
                         "tool": tool_block.name,

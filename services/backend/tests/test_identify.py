@@ -1,7 +1,7 @@
 """Tests for the identify endpoint."""
 
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 
 class TestHealthEndpoint:
@@ -266,3 +266,50 @@ class TestStreamEndpoint:
             assert types[-1] == "done"
         finally:
             route_mod.IDENTIFY_TIMEOUT = original_timeout
+
+    def test_stream_emits_detective_note(self, client, mock_bird_agent_stream, sample_agent_result):
+        """detective_note events should pass through to SSE stream."""
+
+        async def mock_stream(*args, **kwargs):
+            yield {"type": "detective_note", "message": "Blue and orange... interesting."}
+            yield {"type": "result", "data": sample_agent_result}
+
+        mock_bird_agent_stream.side_effect = mock_stream
+        response = client.post(
+            "/api/identify/stream",
+            json={"description": "blue bird", "location": "US-NY"},
+        )
+        events = self._parse_sse_events(response.text)
+        detective_notes = [e for e in events if e.get("type") == "detective_note"]
+        assert len(detective_notes) == 1
+        assert detective_notes[0]["message"] == "Blue and orange... interesting."
+
+    def test_stream_resolves_candidate_images(self, client, mock_bird_agent_stream, sample_agent_result):
+        """candidates events should have image_url resolved by backend."""
+
+        async def mock_stream(*args, **kwargs):
+            yield {
+                "type": "candidates",
+                "data": [
+                    {"name": "Common Kingfisher", "species_code": "comkin1", "status": "considering"}
+                ],
+            }
+            yield {"type": "result", "data": sample_agent_result}
+
+        mock_bird_agent_stream.side_effect = mock_stream
+        with patch("services.backend.app.routes.identify.ebird_client") as mock_ebird:
+            mock_ebird.get_species_image = AsyncMock(
+                return_value={
+                    "image_url": "https://example.com/kingfisher.jpg",
+                    "photographer": "Test Photographer",
+                }
+            )
+            response = client.post(
+                "/api/identify/stream",
+                json={"description": "blue bird", "location": "US-NY"},
+            )
+
+        events = self._parse_sse_events(response.text)
+        candidate_events = [e for e in events if e.get("type") == "candidates"]
+        assert len(candidate_events) == 1
+        assert candidate_events[0]["data"][0]["image_url"] == "https://example.com/kingfisher.jpg"

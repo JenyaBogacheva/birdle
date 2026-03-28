@@ -177,8 +177,24 @@ async def identify_bird_stream(observation: ObservationInput):
                     yield f'data: {json.dumps({"type": "done"})}\n\n'
                     return
 
+                # Intercept candidates events to resolve Macaulay images
+                if event.get("type") == "candidates":
+                    candidates = event["data"]
+
+                    async def resolve_image(candidate: dict) -> dict:
+                        if candidate.get("status") == "considering" and candidate.get("species_code"):
+                            img = await ebird_client.get_species_image(candidate["species_code"])
+                            if img:
+                                candidate["image_url"] = img["image_url"]
+                                candidate["image_credit"] = img.get("photographer")
+                        return candidate
+
+                    resolved = await asyncio.gather(*[resolve_image(c) for c in candidates])
+                    event["data"] = list(resolved)
+                    yield f"data: {json.dumps(event)}\n\n"
+
                 # Intercept result events to fetch images and build RecommendationResponse
-                if event.get("type") == "result":
+                elif event.get("type") == "result":
                     agent_data = event["data"]
 
                     status_msg = {"type": "status", "message": "Fetching photos..."}
