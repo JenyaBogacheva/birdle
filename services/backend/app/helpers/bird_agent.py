@@ -152,6 +152,49 @@ TOOLS: list[ToolParam] = [
     },
 ]
 
+UI_TOOLS: list[ToolParam] = [
+    {
+        "name": "detective_note",
+        "description": "Record a brief atmospheric observation about the investigation. Use this to share your thinking process as short, evocative notes — like a field naturalist's notebook. One sentence, max 10 words.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "description": "A brief atmospheric observation, e.g. 'Blue and orange... interesting.' or 'That beak says kingfisher.'"
+                }
+            },
+            "required": ["message"]
+        }
+    },
+    {
+        "name": "update_candidates",
+        "description": "Update your shortlist of candidate species. Call this whenever you add or eliminate species from consideration.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "candidates": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {"type": "string", "description": "Common name of the species"},
+                            "species_code": {"type": "string", "description": "eBird species code"},
+                            "status": {"type": "string", "enum": ["considering", "eliminated"]},
+                            "reason": {"type": "string", "description": "Brief reason for status"}
+                        },
+                        "required": ["name", "species_code", "status"]
+                    }
+                }
+            },
+            "required": ["candidates"]
+        }
+    }
+]
+
+ALL_TOOLS: list[ToolParam] = TOOLS + UI_TOOLS
+UI_TOOL_NAMES: set[str] = {t["name"] for t in UI_TOOLS}
+
 NOT_BIRD_RESPONSE: dict[str, Any] = {
     "message": (
         "I'm Birdle, a bird identification assistant! "
@@ -175,6 +218,9 @@ MAX_ITERATIONS = 4
 
 async def _execute_tool(name: str, input_data: dict[str, Any]) -> Any:
     """Execute a single tool call and return the result."""
+    if name in UI_TOOL_NAMES:
+        return {"acknowledged": True}
+
     start_time = time.time()
     result: Any
     try:
@@ -336,7 +382,7 @@ class BirdAgent:
                     model=AGENT_MODEL,
                     max_tokens=16000,
                     system=SYSTEM_PROMPT,
-                    tools=TOOLS,
+                    tools=ALL_TOOLS,
                     thinking={"type": "adaptive"},
                     messages=messages,
                 )
@@ -462,7 +508,7 @@ class BirdAgent:
                     model=AGENT_MODEL,
                     max_tokens=16000,
                     system=SYSTEM_PROMPT,
-                    tools=TOOLS,
+                    tools=ALL_TOOLS,
                     thinking={"type": "adaptive"},
                     messages=messages,
                 ) as stream:

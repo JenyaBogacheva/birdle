@@ -202,3 +202,37 @@ class TestIdentifyStream:
         assert "error" in types
         error_event = next(e for e in events if e["type"] == "error")
         assert "unexpected error" in error_event["message"].lower()
+
+
+class TestUITools:
+    """Tests for detective_note and update_candidates UI-only tools."""
+
+    def test_detective_note_tool_in_definitions(self):
+        """detective_note tool should be in TOOLS list."""
+        from services.backend.app.helpers.bird_agent import ALL_TOOLS
+        tool_names = [t["name"] for t in ALL_TOOLS]
+        assert "detective_note" in tool_names
+
+    def test_update_candidates_tool_in_definitions(self):
+        """update_candidates tool should be in TOOLS list."""
+        from services.backend.app.helpers.bird_agent import ALL_TOOLS
+        tool_names = [t["name"] for t in ALL_TOOLS]
+        assert "update_candidates" in tool_names
+
+    @pytest.mark.asyncio
+    async def test_execute_detective_note(self):
+        """detective_note should return acknowledgment, not call external APIs."""
+        from services.backend.app.helpers.bird_agent import _execute_tool
+        result = await _execute_tool("detective_note", {"message": "Blue and orange..."})
+        assert result == {"acknowledged": True}
+
+    @pytest.mark.asyncio
+    async def test_execute_update_candidates(self):
+        """update_candidates should return acknowledgment, not call external APIs."""
+        from services.backend.app.helpers.bird_agent import _execute_tool
+        result = await _execute_tool("update_candidates", {
+            "candidates": [
+                {"name": "Kingfisher", "species_code": "comkin1", "status": "considering"}
+            ]
+        })
+        assert result == {"acknowledged": True}
