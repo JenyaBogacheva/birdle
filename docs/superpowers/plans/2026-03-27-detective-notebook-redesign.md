@@ -1521,7 +1521,7 @@ git commit -m "feat: restyle BirdForm with frosted glass, Caveat font, Investiga
 
 **Files:**
 - Create: `frontend/src/pages/BirdleApp.tsx`
-- Modify: `frontend/src/App.tsx` (update import)
+- Modify: `frontend/src/main.tsx` (update import)
 
 - [ ] **Step 1: Create BirdleApp**
 
