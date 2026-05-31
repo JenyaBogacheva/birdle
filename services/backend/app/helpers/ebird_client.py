@@ -18,6 +18,19 @@ EBIRD_API_BASE = "https://api.ebird.org/v2"
 MACAULAY_API_BASE = "https://search.macaulaylibrary.org/api/v1"
 TIMEOUT = 10.0
 
+FREQUENCY_FETCH_CAP = 400  # cap rows fetched per species; ">=cap" reads as "common"
+
+
+def _abundance_bucket(report_count: int) -> str:
+    """Bucket a recent-report count into a coarse abundance band."""
+    if report_count <= 0:
+        return "absent"
+    if report_count < 50:
+        return "rare"
+    if report_count < 300:
+        return "uncommon"
+    return "common"
+
 
 class eBirdClient:  # noqa: N801 - eBird is a proper brand name
     """Direct eBird API client with graceful error handling."""
@@ -97,6 +110,71 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
                     "operation": "get_regional_birds",
                     "region": region,
                     "latency_ms": round(latency_ms, 2),
+                    "status": "error",
+                    "error_type": type(e).__name__,
+                },
+            )
+            return fallback
+
+    async def get_species_frequency(
+        self, region: str, species_code: str, days: int = 14
+    ) -> dict[str, Any]:
+        """
+        How commonly a species has been reported in a region recently.
+
+        Counts recent reports (capped) and buckets them. Returns an
+        ``abundance`` of "unknown" on any error or empty code — never raises.
+        """
+        fallback: dict[str, Any] = {
+            "region": region,
+            "species_code": species_code,
+            "days_searched": days,
+            "report_count": 0,
+            "capped": False,
+            "abundance": "unknown",
+        }
+        if not species_code:
+            return fallback
+
+        start_time = time.time()
+        try:
+            url = f"{EBIRD_API_BASE}/data/obs/{region}/recent/{species_code}"
+            headers = {"X-eBirdApiToken": settings.ebird_token}
+            params = {"back": days, "maxResults": FREQUENCY_FETCH_CAP}
+
+            resp = await self._client.get(url, headers=headers, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            count = len(data)
+            result = {
+                "region": region,
+                "species_code": species_code,
+                "days_searched": days,
+                "report_count": count,
+                "capped": count >= FREQUENCY_FETCH_CAP,
+                "abundance": _abundance_bucket(count),
+            }
+            logger.info(
+                "eBird species frequency fetched",
+                extra={
+                    "operation": "get_species_frequency",
+                    "region": region,
+                    "species_code": species_code,
+                    "abundance": result["abundance"],
+                    "latency_ms": round((time.time() - start_time) * 1000, 2),
+                    "status": "success",
+                },
+            )
+            return result
+        except Exception as e:
+            logger.warning(
+                f"eBird species frequency failed: {e}",
+                extra={
+                    "operation": "get_species_frequency",
+                    "region": region,
+                    "species_code": species_code,
+                    "latency_ms": round((time.time() - start_time) * 1000, 2),
                     "status": "error",
                     "error_type": type(e).__name__,
                 },

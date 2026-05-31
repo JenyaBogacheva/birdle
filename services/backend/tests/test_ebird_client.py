@@ -2,7 +2,7 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
-from services.backend.app.helpers.ebird_client import eBirdClient
+from services.backend.app.helpers.ebird_client import eBirdClient, _abundance_bucket
 
 
 class TestGetRegionalBirds:
@@ -34,6 +34,63 @@ class TestGetRegionalBirds:
 
         assert result["species_observed"] == []
         assert "total_observations" not in result
+
+
+class TestAbundanceBucket:
+    def test_absent(self):
+        assert _abundance_bucket(0) == "absent"
+
+    def test_rare(self):
+        assert _abundance_bucket(12) == "rare"
+        assert _abundance_bucket(49) == "rare"
+
+    def test_uncommon(self):
+        assert _abundance_bucket(50) == "uncommon"
+        assert _abundance_bucket(299) == "uncommon"
+
+    def test_common(self):
+        assert _abundance_bucket(300) == "common"
+        assert _abundance_bucket(400) == "common"
+
+
+class TestGetSpeciesFrequency:
+    async def test_success_buckets(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = [{"speciesCode": "norcar"}] * 125  # 125 reports
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        result = await ebird.get_species_frequency("US-NY", "norcar", days=14)
+
+        assert result["species_code"] == "norcar"
+        assert result["report_count"] == 125
+        assert result["abundance"] == "uncommon"
+        assert result["capped"] is False
+
+    async def test_capped_when_at_or_above_cap(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = [{"speciesCode": "norcar"}] * 400
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        result = await ebird.get_species_frequency("US-NY", "norcar")
+
+        assert result["abundance"] == "common"
+        assert result["capped"] is True
+
+    async def test_empty_code_returns_unknown(self):
+        ebird = eBirdClient()
+        result = await ebird.get_species_frequency("US-NY", "")
+        assert result["abundance"] == "unknown"
+
+    async def test_error_returns_unknown(self):
+        ebird = eBirdClient()
+        ebird._client.get = AsyncMock(side_effect=Exception("boom"))
+        result = await ebird.get_species_frequency("US-NY", "norcar")
+        assert result["abundance"] == "unknown"
+        assert result["report_count"] == 0
 
 
 class TestGetSpeciesImage:
