@@ -10,18 +10,27 @@ Birdle AI is an LLM-powered bird identification app. Users describe a bird sight
 
 **Stack:** React 18 + Vite + Tailwind (frontend) | FastAPI + Python 3.11 + Pydantic v2 (backend) | Anthropic Claude + eBird API + Tavily
 
-**Request flow (agentic, stateless):**
+**Request flow (LangGraph, turn-based sessions):**
 ```
-React SPA → FastAPI POST /api/identify → content moderation
-  → Bird ID Agent (Claude Sonnet + extended thinking)
-       ├── get_regional_birds(region, days)   ← direct httpx → eBird API
-       ├── get_species_image(species_code)    ← direct httpx → Macaulay Library
-       └── web_search(query)                  ← Tavily API
-  → Parse structured response → Return to frontend
+React SPA → FastAPI POST /api/identify/stream → guardrail node (Haiku: is it a bird?)
+  → resolve_inputs (Haiku location→eBird region parse, eBird-validated; may ask via interrupt)
+  → investigate (Claude Sonnet + extended thinking) ⇄ tools (LangGraph ToolNode)
+       ├── get_regional_birds / get_species_frequency / get_regional_rarities
+       ├── lookup_family                       ← direct httpx → eBird / Macaulay
+       └── web_search(query)                   ← Tavily API
+  → confidence_gate (grounding guards) → { submit_id | ask_user | inconclusive }
+  → SSE stream → (on ask_user) POST /api/identify/resume {session_id, user_message}
 ```
 
-- No database, no background workers, no external state — fully stateless and in-memory
-- Bird identification agent lives in `services/backend/app/helpers/bird_agent.py`
+- Turn-based per session: an in-memory LangGraph `InMemorySaver` keyed by `session_id`
+  (30-min idle TTL, no DB; a restart drops in-flight sessions and the client starts fresh).
+- Human-in-the-loop via `interrupt()`: the agent pauses to ask a clarifying or
+  disambiguation question and resumes with the user's reply.
+- Mandatory grounding guards: regional presence checked before concluding;
+  frequency checked before HIGH confidence.
+- The graph lives in `services/backend/app/graph/` (`state`, `prompts`, `tools`,
+  `nodes`, `routing`, `build`, `runner`). `runner.py` adapts LangGraph's multi-mode
+  `astream` into the SSE event protocol.
 - eBird/Macaulay access via direct httpx calls in `services/backend/app/helpers/ebird_client.py`
 - Web search via Tavily in `services/backend/app/helpers/web_search.py`
 - Settings loaded via Pydantic BaseSettings from `.env.local`
