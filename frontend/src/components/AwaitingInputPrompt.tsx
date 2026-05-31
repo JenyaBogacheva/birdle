@@ -39,9 +39,9 @@ export function AwaitingInputPrompt({
 
       {options && options.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {options.map((opt) => (
+          {options.map((opt, i) => (
             <button
-              key={opt}
+              key={`${opt}-${i}`}
               type="button"
               disabled={disabled}
               onClick={() => onAnswer(opt)}
@@ -56,6 +56,7 @@ export function AwaitingInputPrompt({
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
           type="text"
+          aria-label="Your answer"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="type your answer... ✍️"
