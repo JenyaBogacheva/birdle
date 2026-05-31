@@ -84,4 +84,24 @@ describe('identifyBirdStream', () => {
       identifyBirdStream({ description: 'x', location: 'y' }, () => {}),
     ).rejects.toThrow('Stream request failed: 500');
   });
+
+  it('returns silently when the caller aborts', async () => {
+    const controller = new AbortController();
+    vi.mocked(fetch).mockImplementation(() => {
+      controller.abort();
+      return Promise.reject(new DOMException('Aborted', 'AbortError'));
+    });
+
+    await expect(
+      identifyBirdStream({ description: 'x', location: 'y' }, () => {}, controller.signal),
+    ).resolves.toBeUndefined();
+  });
+
+  it('throws a connection error when the internal timeout aborts', async () => {
+    vi.mocked(fetch).mockRejectedValue(new DOMException('Aborted', 'AbortError'));
+
+    await expect(
+      identifyBirdStream({ description: 'x', location: 'y' }, () => {}),
+    ).rejects.toThrow('Could not connect to streaming endpoint');
+  });
 });
