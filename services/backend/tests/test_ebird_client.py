@@ -138,3 +138,30 @@ class TestGetSpeciesImage:
         result = await ebird.get_species_image("norcar")
 
         assert result is None
+
+
+class TestGetRegionalRarities:
+    async def test_success_dedupes(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = [
+            {"speciesCode": "purgal2", "comName": "Purple Gallinule", "sciName": "Porphyrio martinica",
+             "locName": "Central Park", "obsDt": "2026-05-30 08:00"},
+            {"speciesCode": "purgal2", "comName": "Purple Gallinule", "sciName": "Porphyrio martinica",
+             "locName": "Prospect Park", "obsDt": "2026-05-29 07:00"},
+        ]
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        result = await ebird.get_regional_rarities("US-NY", days=14)
+
+        assert result["region"] == "US-NY"
+        assert len(result["rarities"]) == 1  # deduped by species
+        assert result["rarities"][0]["common_name"] == "Purple Gallinule"
+        assert result["rarities"][0]["species_code"] == "purgal2"
+
+    async def test_error_returns_empty(self):
+        ebird = eBirdClient()
+        ebird._client.get = AsyncMock(side_effect=Exception("boom"))
+        result = await ebird.get_regional_rarities("US-NY")
+        assert result["rarities"] == []

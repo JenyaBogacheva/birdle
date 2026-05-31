@@ -181,6 +181,61 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
             )
             return fallback
 
+    async def get_regional_rarities(
+        self, region: str, days: int = 14, max_results: int = 15
+    ) -> dict[str, Any]:
+        """
+        Notable/rare species reported in a region recently (vagrant radar).
+
+        Returns an empty ``rarities`` list on any error — never raises.
+        """
+        fallback: dict[str, Any] = {"region": region, "days_searched": days, "rarities": []}
+        start_time = time.time()
+        try:
+            url = f"{EBIRD_API_BASE}/data/obs/{region}/recent/notable"
+            headers = {"X-eBirdApiToken": settings.ebird_token}
+            params = {"back": days, "maxResults": max_results, "detail": "simple"}
+
+            resp = await self._client.get(url, headers=headers, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            seen: dict[str, dict[str, Any]] = {}
+            for obs in data:
+                code = obs.get("speciesCode", "")
+                if code and code not in seen:
+                    seen[code] = {
+                        "common_name": obs.get("comName", "Unknown"),
+                        "scientific_name": obs.get("sciName", ""),
+                        "species_code": code,
+                        "location": obs.get("locName", ""),
+                        "observed_on": obs.get("obsDt", ""),
+                    }
+
+            logger.info(
+                "eBird rarities fetched",
+                extra={
+                    "operation": "get_regional_rarities",
+                    "region": region,
+                    "rarity_count": len(seen),
+                    "latency_ms": round((time.time() - start_time) * 1000, 2),
+                    "status": "success",
+                },
+            )
+            return {"region": region, "days_searched": days, "rarities": list(seen.values())}
+        except Exception as e:
+            logger.warning(
+                f"eBird rarities failed: {e}",
+                extra={
+                    "operation": "get_regional_rarities",
+                    "region": region,
+                    "latency_ms": round((time.time() - start_time) * 1000, 2),
+                    "status": "error",
+                    "error_type": type(e).__name__,
+                },
+            )
+            return fallback
+
     async def get_species_image(self, species_code: str) -> Optional[dict[str, str]]:
         """
         Fetch the top-rated photo for a species from Macaulay Library.
