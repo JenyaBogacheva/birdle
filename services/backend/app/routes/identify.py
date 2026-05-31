@@ -22,7 +22,7 @@ from ..schemas.observation import (
 
 logger = logging.getLogger(__name__)
 
-IDENTIFY_TIMEOUT = 60.0
+IDENTIFY_TIMEOUT = 120.0
 
 router = APIRouter(prefix="/api", tags=["identification"])
 

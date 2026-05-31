@@ -76,7 +76,7 @@ This project follows a strict iteration-based workflow (see `docs/workflow.md`):
 - MVP-first, KISS, YAGNI — no new services, queues, storage, or framework swaps without vision approval
 - Never skip pre-commit hooks (`--no-verify`), never commit with failing tests, never bypass CI
 - One-retry policy for transient API errors; graceful degradation when eBird/Tavily fails
-- 60s total timeout per identification request; max 8 tool calls per agent run
+- 120s total timeout per identification request; turn-based, multi-turn agent runs
 - Structured logging: operation, latency_ms, token counts, status
 - Commit format: `feat: iteration X — <short goal>` (adjust type as needed)
 
