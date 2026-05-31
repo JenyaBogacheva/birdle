@@ -2500,3 +2500,28 @@ Plan complete. Two execution options:
 
 1. **Subagent-Driven (recommended)** — fresh subagent per task, two-stage review between tasks.
 2. **Inline Execution** — execute tasks in this session with checkpoints.
+
+---
+
+## Status: COMPLETE (2026-05-31)
+
+All 16 tasks implemented via subagent-driven development (fresh implementer + verification per task), plus a final whole-implementation review and remediation. Commits `2d5d6ed` → `3c45ccd` on branch `feat/detective-notebook-redesign`. Verification: **94 backend tests pass**, ruff/black/mypy clean on the tracked tree.
+
+**Key integration points verified at runtime (not just unit-mocked):**
+- Real `ChatAnthropic(model=…, thinking=…)` + `bind_tools` construction (langchain-anthropic 1.3.5).
+- `ToolNode` sets `ToolMessage.name` → grounding guards fire correctly.
+- Custom SSE events from tool bodies (`get_stream_writer`) propagate through real `astream(stream_mode=["custom",…])`.
+- Full FastAPI stack: `POST /api/identify/stream` → real runner → real graph → SSE.
+- **Real interrupt→resume round-trip through the compiled graph** (`test_interrupt_then_resume_round_trip`).
+
+**Final-review remediation (commit `3c45ccd`):**
+- `gate_bounces` cap → honest `inconclusive` instead of looping on repeated guard bounces.
+- `recursion_limit=150` (default 25 was below the tool budgets) + `GraphRecursionError` → `inconclusive`.
+- Removed the unbound `get_historic_birds` reference from the system prompt.
+
+**Accepted/deferred minor review items (non-blocking):**
+- Presence guard counts an *attempted* `get_regional_birds` call (an errored lookup still satisfies it) — accepted as "consulted eBird" semantics.
+- `_thinking_pieces` streams both `thinking` and `text` blocks as `thinking` events — fine for the detective UI.
+- `SessionStore.sweep()` is not wired to a caller in production (lazy eviction on `exists()` only); `InMemorySaver` checkpoints are not evicted — accepted MVP limitation per spec §8.
+
+**Not done here (future):** Plan 3 — frontend plumbing (`session_id`, resume call, `awaiting_input` rendering). The detective-notebook UI and theme redesign remain deferred.
