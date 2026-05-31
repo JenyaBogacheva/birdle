@@ -371,6 +371,58 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
             )
             return []
 
+    async def get_subregions(
+        self, parent_region: str, region_type: str = "subnational2"
+    ) -> list[dict[str, str]]:
+        """
+        Sub-regions of a parent (e.g. counties of a US state) as {code, name}.
+
+        Returns an empty list on any error — never raises.
+        """
+        try:
+            url = f"{EBIRD_API_BASE}/ref/region/list/{region_type}/{parent_region}"
+            headers = {"X-eBirdApiToken": settings.ebird_token}
+            resp = await self._client.get(url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+            return data if isinstance(data, list) else []
+        except Exception as e:
+            logger.warning(
+                f"eBird subregion list failed: {e}",
+                extra={
+                    "operation": "get_subregions",
+                    "region": parent_region,
+                    "status": "error",
+                    "error_type": type(e).__name__,
+                },
+            )
+            return []
+
+    async def get_region_info(self, region: str) -> Optional[dict[str, Any]]:
+        """
+        Metadata (name, bounds, parent) for a region code.
+
+        Returns None on any error — never raises.
+        """
+        try:
+            url = f"{EBIRD_API_BASE}/ref/region/info/{region}"
+            headers = {"X-eBirdApiToken": settings.ebird_token}
+            resp = await self._client.get(url, headers=headers)
+            resp.raise_for_status()
+            data: dict[str, Any] = resp.json()
+            return data
+        except Exception as e:
+            logger.warning(
+                f"eBird region info failed: {e}",
+                extra={
+                    "operation": "get_region_info",
+                    "region": region,
+                    "status": "error",
+                    "error_type": type(e).__name__,
+                },
+            )
+            return None
+
     async def get_species_image(self, species_code: str) -> Optional[dict[str, str]]:
         """
         Fetch the top-rated photo for a species from Macaulay Library.

@@ -10,8 +10,16 @@ class TestGetRegionalBirds:
         ebird = eBirdClient()
         mock_response = MagicMock()
         mock_response.json.return_value = [
-            {"comName": "Northern Cardinal", "sciName": "Cardinalis cardinalis", "speciesCode": "norcar"},
-            {"comName": "Northern Cardinal", "sciName": "Cardinalis cardinalis", "speciesCode": "norcar"},
+            {
+                "comName": "Northern Cardinal",
+                "sciName": "Cardinalis cardinalis",
+                "speciesCode": "norcar",
+            },
+            {
+                "comName": "Northern Cardinal",
+                "sciName": "Cardinalis cardinalis",
+                "speciesCode": "norcar",
+            },
             {"comName": "Blue Jay", "sciName": "Cyanocitta cristata", "speciesCode": "blujay"},
         ]
         mock_response.raise_for_status = MagicMock()
@@ -145,10 +153,20 @@ class TestGetRegionalRarities:
         ebird = eBirdClient()
         mock_response = MagicMock()
         mock_response.json.return_value = [
-            {"speciesCode": "purgal2", "comName": "Purple Gallinule", "sciName": "Porphyrio martinica",
-             "locName": "Central Park", "obsDt": "2026-05-30 08:00"},
-            {"speciesCode": "purgal2", "comName": "Purple Gallinule", "sciName": "Porphyrio martinica",
-             "locName": "Prospect Park", "obsDt": "2026-05-29 07:00"},
+            {
+                "speciesCode": "purgal2",
+                "comName": "Purple Gallinule",
+                "sciName": "Porphyrio martinica",
+                "locName": "Central Park",
+                "obsDt": "2026-05-30 08:00",
+            },
+            {
+                "speciesCode": "purgal2",
+                "comName": "Purple Gallinule",
+                "sciName": "Porphyrio martinica",
+                "locName": "Prospect Park",
+                "obsDt": "2026-05-29 07:00",
+            },
         ]
         mock_response.raise_for_status = MagicMock()
         ebird._client.get = AsyncMock(return_value=mock_response)
@@ -172,8 +190,12 @@ class TestLookupFamily:
         ebird = eBirdClient()
         mock_response = MagicMock()
         mock_response.json.return_value = [
-            {"comName": "Northern Cardinal", "sciName": "Cardinalis cardinalis",
-             "familyComName": "Cardinals and Allies", "order": "Passeriformes"}
+            {
+                "comName": "Northern Cardinal",
+                "sciName": "Cardinalis cardinalis",
+                "familyComName": "Cardinals and Allies",
+                "order": "Passeriformes",
+            }
         ]
         mock_response.raise_for_status = MagicMock()
         ebird._client.get = AsyncMock(return_value=mock_response)
@@ -188,8 +210,12 @@ class TestLookupFamily:
         ebird = eBirdClient()
         mock_response = MagicMock()
         mock_response.json.return_value = [
-            {"comName": "Blue Jay", "sciName": "Cyanocitta cristata",
-             "familyComName": "Crows, Jays, and Magpies", "order": "Passeriformes"}
+            {
+                "comName": "Blue Jay",
+                "sciName": "Cyanocitta cristata",
+                "familyComName": "Crows, Jays, and Magpies",
+                "order": "Passeriformes",
+            }
         ]
         mock_response.raise_for_status = MagicMock()
         ebird._client.get = AsyncMock(return_value=mock_response)
@@ -252,3 +278,40 @@ class TestGetRegionSpeciesList:
         ebird._client.get = AsyncMock(side_effect=Exception("boom"))
         result = await ebird.get_region_species_list("US-NY")
         assert result == []
+
+
+class TestRegionResolution:
+    async def test_get_subregions_success(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = [
+            {"code": "US-NY-047", "name": "Kings"},
+            {"code": "US-NY-061", "name": "New York"},
+        ]
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        result = await ebird.get_subregions("US-NY")
+
+        assert {"code": "US-NY-047", "name": "Kings"} in result
+
+    async def test_get_subregions_error_returns_empty(self):
+        ebird = eBirdClient()
+        ebird._client.get = AsyncMock(side_effect=Exception("boom"))
+        assert await ebird.get_subregions("US-NY") == []
+
+    async def test_get_region_info_success(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"code": "US-NY-047", "result": "Kings, New York, US"}
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        result = await ebird.get_region_info("US-NY-047")
+
+        assert result["code"] == "US-NY-047"
+
+    async def test_get_region_info_error_returns_none(self):
+        ebird = eBirdClient()
+        ebird._client.get = AsyncMock(side_effect=Exception("boom"))
+        assert await ebird.get_region_info("US-NY-047") is None
