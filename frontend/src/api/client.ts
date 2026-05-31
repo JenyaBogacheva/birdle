@@ -1,7 +1,12 @@
 /**
  * API client for backend communication.
  */
-import type { ObservationInput, RecommendationResponse, StreamEvent } from '../types/observation';
+import type {
+  ObservationInput,
+  RecommendationResponse,
+  ResumeInput,
+  StreamEvent,
+} from '../types/observation';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -41,8 +46,46 @@ export async function identifyBird(
   }
 }
 
-export async function identifyBirdStream(
-  observation: ObservationInput,
+/** Read an SSE response body, dispatching each `data:` event to onEvent. */
+async function consumeSSEStream(
+  response: Response,
+  onEvent: (event: StreamEvent) => void,
+): Promise<void> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let receivedDone = false;
+
+  let reading = true;
+  while (reading) {
+    const { done, value } = await reader.read();
+    if (done) {
+      reading = false;
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() || '';
+    for (const part of parts) {
+      const line = part.trim();
+      if (line.startsWith('data: ')) {
+        const event = JSON.parse(line.slice(6)) as StreamEvent;
+        onEvent(event);
+        if (event.type === 'done') receivedDone = true;
+      }
+    }
+  }
+
+  if (!receivedDone) {
+    throw new Error('Stream ended unexpectedly');
+  }
+}
+
+/** POST a JSON body to an SSE endpoint and stream the events. */
+async function streamSSE(
+  path: string,
+  body: unknown,
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
@@ -54,10 +97,10 @@ export async function identifyBirdStream(
   signal?.addEventListener('abort', onAbort);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/identify/stream`, {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(observation),
+      body: JSON.stringify(body),
       signal: controller.signal,
     });
     clearTimeout(connectionTimeout);
@@ -66,31 +109,7 @@ export async function identifyBirdStream(
       throw new Error(`Stream request failed: ${response.status}`);
     }
 
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let receivedDone = false;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      const parts = buffer.split('\n\n');
-      buffer = parts.pop() || '';
-      for (const part of parts) {
-        const line = part.trim();
-        if (line.startsWith('data: ')) {
-          const event = JSON.parse(line.slice(6)) as StreamEvent;
-          onEvent(event);
-          if (event.type === 'done') receivedDone = true;
-        }
-      }
-    }
-
-    if (!receivedDone) {
-      throw new Error('Stream ended unexpectedly');
-    }
+    await consumeSSEStream(response, onEvent);
   } catch (error) {
     clearTimeout(connectionTimeout);
     if (error instanceof DOMException && error.name === 'AbortError') {
@@ -105,4 +124,20 @@ export async function identifyBirdStream(
   } finally {
     signal?.removeEventListener('abort', onAbort);
   }
+}
+
+export function identifyBirdStream(
+  observation: ObservationInput,
+  onEvent: (event: StreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return streamSSE('/api/identify/stream', observation, onEvent, signal);
+}
+
+export function resumeIdentificationStream(
+  payload: ResumeInput,
+  onEvent: (event: StreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return streamSSE('/api/identify/resume', payload, onEvent, signal);
 }
