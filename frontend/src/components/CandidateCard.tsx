@@ -18,6 +18,9 @@ export default function CandidateCard({ candidate }: CandidateCardProps) {
     if (prevStatusRef.current === candidate.status && svgRef.current.childElementCount > 0) return;
     prevStatusRef.current = candidate.status;
 
+    // Clear previous drawings before redrawing (prevents duplicate nodes on status change)
+    svgRef.current.innerHTML = '';
+
     const rc = rough.svg(svgRef.current);
     const w = svgRef.current.clientWidth || 160;
     const h = svgRef.current.clientHeight || 200;
