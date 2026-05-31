@@ -58,3 +58,96 @@ async def guardrail(state: BirdState) -> dict[str, Any]:
     except Exception as e:  # fail open
         logger.warning(f"Guardrail failed, allowing request: {e}")
     return {"final": None}
+
+
+async def _parse_inputs(location: str, observed_at: Optional[str]) -> dict[str, Any]:
+    """Haiku structured parse: location/time -> {region_code, observed_window}."""
+    try:
+        resp = await _raw_anthropic.messages.create(
+            model=prompts.RESOLVE_MODEL,
+            max_tokens=200,
+            system=prompts.RESOLVE_PROMPT,
+            messages=[{"role": "user", "content": f"location={location!r} time={observed_at!r}"}],
+        )
+        raw = _first_text(resp).strip()
+        # Tolerate code fences / stray prose around the JSON object.
+        start, end = raw.find("{"), raw.rfind("}")
+        parsed = json.loads(raw[start : end + 1]) if start != -1 and end != -1 else {}
+    except Exception as e:
+        logger.warning(
+            f"Input parse failed: {e}", extra={"operation": "resolve_inputs", "status": "error"}
+        )
+        parsed = {}
+    return {
+        "region_code": parsed.get("region_code"),
+        "observed_window": parsed.get("observed_window") or "recent",
+    }
+
+
+async def resolve_inputs(state: BirdState) -> dict[str, Any]:
+    """Resolve location -> region code + observed_window; clarify via interrupt when needed."""
+    location = state.get("location", "") or ""
+    observed_at = state.get("observed_at")
+    ask_rounds = state.get("ask_rounds", 0)
+
+    parsed = await _parse_inputs(location, observed_at)
+    region = parsed["region_code"]
+    window = parsed["observed_window"]
+
+    # Validate a proposed region against eBird; drop it if unknown.
+    if region:
+        info = await ebird_client.get_region_info(region)
+        if info is None:
+            region = None
+
+    answer: Optional[str] = None
+    if region is None and ask_rounds < prompts.MAX_ASK_ROUNDS:
+        payload: dict[str, Any]
+        if location.strip():
+            # provided but unresolved -> HARD clarify
+            payload = {
+                "reason": "clarify_location",
+                "question": (
+                    f"I couldn't pin down “{location}” to a birding region. "
+                    "Which country/state (or nearest city) was it?"
+                ),
+            }
+        else:
+            # missing -> SOFT clarify (skippable)
+            payload = {
+                "reason": "clarify_location",
+                "question": "Where did you see it? A location helps a lot — or skip and I'll do my best.",
+                "options": ["Skip — no location"],
+            }
+        answer = interrupt(payload)
+        ask_rounds += 1
+        # Re-parse with the human's answer (unless they skipped).
+        if answer and answer.strip().lower() not in {"skip", "skip — no location", "not sure"}:
+            reparsed = await _parse_inputs(answer, observed_at)
+            region = reparsed["region_code"]
+            if region and await ebird_client.get_region_info(region) is None:
+                region = None
+            window = reparsed["observed_window"]
+
+    # Unparseable date is a soft, low-value ask; for v1 we proceed as "recent"
+    # and let the agent ask via ask_user only if season proves decisive.
+    if window == "unparseable":
+        window = "recent"
+
+    context = SystemMessage(
+        content=(
+            f"Resolved region: {region or 'UNKNOWN (proceed description-only, lower confidence)'}. "
+            f"Observation window: {window}. "
+            + (
+                "Use get_regional_birds for recent presence."
+                if window == "recent"
+                else f"The sighting was on {window}; prefer date-anchored evidence and reason about seasonality."
+            )
+        )
+    )
+    return {
+        "region": region,
+        "observed_window": window,
+        "ask_rounds": ask_rounds,
+        "messages": [context],
+    }
