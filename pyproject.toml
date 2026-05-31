@@ -42,7 +42,9 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
-ignore = []
+# black (line-length 100) owns formatting and does not split string literals,
+# so E501 on long prompt/description strings is noise — let the formatter decide.
+ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"

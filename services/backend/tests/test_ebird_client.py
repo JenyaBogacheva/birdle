@@ -2,7 +2,7 @@
 
 from unittest.mock import AsyncMock, MagicMock
 
-from services.backend.app.helpers.ebird_client import eBirdClient, _abundance_bucket
+from services.backend.app.helpers.ebird_client import _abundance_bucket, eBirdClient
 
 
 class TestGetRegionalBirds:

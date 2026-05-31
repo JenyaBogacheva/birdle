@@ -284,14 +284,20 @@ class TestStreamEndpoint:
         assert len(detective_notes) == 1
         assert detective_notes[0]["message"] == "Blue and orange... interesting."
 
-    def test_stream_resolves_candidate_images(self, client, mock_bird_agent_stream, sample_agent_result):
+    def test_stream_resolves_candidate_images(
+        self, client, mock_bird_agent_stream, sample_agent_result
+    ):
         """candidates events should have image_url resolved by backend."""
 
         async def mock_stream(*args, **kwargs):
             yield {
                 "type": "candidates",
                 "data": [
-                    {"name": "Common Kingfisher", "species_code": "comkin1", "status": "considering"}
+                    {
+                        "name": "Common Kingfisher",
+                        "species_code": "comkin1",
+                        "status": "considering",
+                    }
                 ],
             }
             yield {"type": "result", "data": sample_agent_result}
