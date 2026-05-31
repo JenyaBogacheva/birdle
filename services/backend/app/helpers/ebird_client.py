@@ -38,6 +38,7 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
     def __init__(self) -> None:
         self._timeout = httpx.Timeout(TIMEOUT)
         self._client = httpx.AsyncClient(timeout=self._timeout)
+        self._family_cache: dict[str, dict[str, Any]] = {}
 
     async def close(self) -> None:
         """Close the shared HTTP client."""
@@ -235,6 +236,50 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
                 },
             )
             return fallback
+
+    async def lookup_family(self, species_code: str) -> Optional[dict[str, Any]]:
+        """
+        Family + order for a species code (for family-level reasoning and
+        "duck-like → grebes/coots" broadening). Cached in-process. Returns
+        None on empty code or any error.
+        """
+        if not species_code:
+            return None
+        if species_code in self._family_cache:
+            return self._family_cache[species_code]
+
+        try:
+            url = f"{EBIRD_API_BASE}/ref/taxonomy/ebird"
+            headers = {"X-eBirdApiToken": settings.ebird_token}
+            params: dict[str, str] = {"fmt": "json", "species": species_code}
+
+            resp = await self._client.get(url, headers=headers, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+            if not data:
+                return None
+
+            item = data[0]
+            info = {
+                "species_code": species_code,
+                "common_name": item.get("comName", ""),
+                "scientific_name": item.get("sciName", ""),
+                "family": item.get("familyComName", ""),
+                "order": item.get("order", ""),
+            }
+            self._family_cache[species_code] = info
+            return info
+        except Exception as e:
+            logger.warning(
+                f"eBird taxonomy lookup failed: {e}",
+                extra={
+                    "operation": "lookup_family",
+                    "species_code": species_code,
+                    "status": "error",
+                    "error_type": type(e).__name__,
+                },
+            )
+            return None
 
     async def get_species_image(self, species_code: str) -> Optional[dict[str, str]]:
         """

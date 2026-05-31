@@ -165,3 +165,45 @@ class TestGetRegionalRarities:
         ebird._client.get = AsyncMock(side_effect=Exception("boom"))
         result = await ebird.get_regional_rarities("US-NY")
         assert result["rarities"] == []
+
+
+class TestLookupFamily:
+    async def test_success(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = [
+            {"comName": "Northern Cardinal", "sciName": "Cardinalis cardinalis",
+             "familyComName": "Cardinals and Allies", "order": "Passeriformes"}
+        ]
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        result = await ebird.lookup_family("norcar")
+
+        assert result["family"] == "Cardinals and Allies"
+        assert result["order"] == "Passeriformes"
+        assert result["common_name"] == "Northern Cardinal"
+
+    async def test_caches_second_call(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = [
+            {"comName": "Blue Jay", "sciName": "Cyanocitta cristata",
+             "familyComName": "Crows, Jays, and Magpies", "order": "Passeriformes"}
+        ]
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        await ebird.lookup_family("blujay")
+        await ebird.lookup_family("blujay")
+
+        ebird._client.get.assert_called_once()  # second call served from cache
+
+    async def test_empty_code_returns_none(self):
+        ebird = eBirdClient()
+        assert await ebird.lookup_family("") is None
+
+    async def test_error_returns_none(self):
+        ebird = eBirdClient()
+        ebird._client.get = AsyncMock(side_effect=Exception("boom"))
+        assert await ebird.lookup_family("norcar") is None
