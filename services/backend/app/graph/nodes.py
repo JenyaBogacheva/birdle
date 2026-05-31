@@ -9,7 +9,7 @@ from typing import Any, Optional
 import anthropic
 from anthropic.types import TextBlock
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
 
@@ -225,3 +225,30 @@ async def ask_user(state: BirdState) -> dict[str, Any]:
         "messages": [closing, HumanMessage(content=str(answer))],
         "ask_rounds": state.get("ask_rounds", 0) + 1,
     }
+
+
+async def submit_id(state: BirdState) -> dict[str, Any]:
+    """Terminal: map submit_identification args into the final response payload."""
+    call = _last_terminal_tool_call(state.get("messages", [])) or {}
+    args = call.get("args", {})
+    final: dict[str, Any] = {
+        "message": args.get("message", ""),
+        "top_species": args.get("top_species"),
+        "alternate_species": args.get("alternate_species") or [],
+        "clarification": args.get("clarification"),
+    }
+    return {"final": final}
+
+
+async def inconclusive(state: BirdState) -> dict[str, Any]:
+    """Terminal: honest "can't identify" — closest guesses + what would help."""
+    call = _last_terminal_tool_call(state.get("messages", [])) or {}
+    args = call.get("args", {})
+    final: dict[str, Any] = {
+        "message": args.get("message", prompts.FALLBACK_RESPONSE["message"]),
+        "top_species": None,
+        # Surface closest guesses as alternates so the existing card renders them.
+        "alternate_species": args.get("closest_guesses") or [],
+        "clarification": args.get("what_would_help"),
+    }
+    return {"final": final}

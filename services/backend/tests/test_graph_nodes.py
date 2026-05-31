@@ -115,3 +115,39 @@ class TestAskUserNode:
         assert out["ask_rounds"] == 1
         human = next(m for m in out["messages"] if isinstance(m, HumanMessage))
         assert "crest" in human.content.lower()
+
+
+class TestTerminalNodes:
+    async def test_submit_id_maps_args_to_final(self):
+        ai = _ai_with_tool_call(
+            "submit_identification",
+            {
+                "message": "It's a Northern Cardinal.",
+                "top_species": {
+                    "scientific_name": "Cardinalis cardinalis",
+                    "common_name": "Northern Cardinal",
+                    "species_code": "norcar",
+                    "confidence": "high",
+                    "reasoning": "red + crest + common",
+                },
+                "alternate_species": [],
+                "clarification": None,
+            },
+        )
+        out = await nodes.submit_id({"messages": [ai]})
+        assert out["final"]["top_species"]["common_name"] == "Northern Cardinal"
+        assert out["final"]["alternate_species"] == []
+
+    async def test_inconclusive_maps_args_to_final(self):
+        ai = _ai_with_tool_call(
+            "inconclusive",
+            {
+                "message": "I can't be sure.",
+                "closest_guesses": [{"common_name": "Some Sparrow", "species_code": "x"}],
+                "what_would_help": "A photo of the tail.",
+            },
+        )
+        out = await nodes.inconclusive({"messages": [ai]})
+        assert out["final"]["top_species"] is None
+        assert "what_would_help" not in out["final"]  # folded into clarification/message
+        assert "tail" in (out["final"]["clarification"] or "").lower()
