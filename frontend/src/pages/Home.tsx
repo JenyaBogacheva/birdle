@@ -4,8 +4,18 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { BirdForm } from '../components/BirdForm';
 import { ResultPanel } from '../components/ResultPanel';
-import { identifyBird, identifyBirdStream } from '../api/client';
-import type { ObservationInput, RecommendationResponse, StreamEvent } from '../types/observation';
+import { AwaitingInputPrompt } from '../components/AwaitingInputPrompt';
+import {
+  identifyBird,
+  identifyBirdStream,
+  resumeIdentificationStream,
+} from '../api/client';
+import type {
+  AwaitingInput,
+  ObservationInput,
+  RecommendationResponse,
+  StreamEvent,
+} from '../types/observation';
 
 export function Home() {
   const [result, setResult] = useState<RecommendationResponse | null>(null);
@@ -16,9 +26,11 @@ export function Home() {
   const [showThinking, setShowThinking] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [canRetry, setCanRetry] = useState(false);
+  const [awaiting, setAwaiting] = useState<AwaitingInput | null>(null);
   const timerRef = useRef<number | null>(null);
   const lastObservationRef = useRef<ObservationInput | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
 
   // Timer effect for elapsed time during loading
   useEffect(() => {
@@ -44,24 +56,40 @@ export function Home() {
 
   const handleStreamEvent = useCallback((event: StreamEvent) => {
     switch (event.type) {
+      case 'session_id':
+        sessionIdRef.current = event.session_id;
+        break;
       case 'status':
         setStatusMessage(event.message);
         break;
       case 'thinking':
         setThinkingText((prev) => prev + event.content);
         break;
+      case 'awaiting_input':
+        setAwaiting({
+          reason: event.reason,
+          question: event.question,
+          options: event.options,
+        });
+        break;
       case 'result':
         setResult(event.data);
+        setAwaiting(null);
         break;
       case 'error':
         setError(event.message);
         setCanRetry(true);
+        setAwaiting(null);
         break;
       case 'tool_call':
         setStatusMessage(`Calling ${event.tool}...`);
         break;
       case 'tool_result':
         setStatusMessage(event.summary);
+        break;
+      case 'detective_note':
+      case 'candidates':
+        // Notebook panel + candidate gallery are the next iteration (spec §3).
         break;
       case 'done':
         break;
@@ -75,9 +103,11 @@ export function Home() {
     abortRef.current = abortController;
 
     lastObservationRef.current = observation;
+    sessionIdRef.current = null;
     setIsLoading(true);
     setError(null);
     setResult(null);
+    setAwaiting(null);
     setCanRetry(false);
     setStatusMessage('');
     setThinkingText('');
@@ -105,6 +135,45 @@ export function Home() {
             errorMessage.includes('try again')
         );
       }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAnswer = async (message: string) => {
+    const sessionId = sessionIdRef.current;
+    if (!sessionId) {
+      setError('Lost the session. Please start a new identification.');
+      setAwaiting(null);
+      return;
+    }
+
+    // Abort any in-flight stream
+    abortRef.current?.abort();
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+
+    setAwaiting(null);
+    setIsLoading(true);
+    setError(null);
+    setCanRetry(false);
+    setStatusMessage('');
+    setThinkingText('');
+
+    try {
+      await resumeIdentificationStream(
+        { session_id: sessionId, user_message: message },
+        handleStreamEvent,
+        abortController.signal,
+      );
+    } catch (err) {
+      if (abortController.signal.aborted) return; // User cancelled
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : 'An unexpected error occurred. Please try again.';
+      setError(errorMessage);
+      setCanRetry(true);
     } finally {
       setIsLoading(false);
     }
@@ -220,6 +289,17 @@ export function Home() {
                   {thinkingText}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Awaiting user input (HITL pause) */}
+          {awaiting && !isLoading && (
+            <div className="animate-fade-in mb-8">
+              <AwaitingInputPrompt
+                question={awaiting.question}
+                options={awaiting.options}
+                onAnswer={handleAnswer}
+              />
             </div>
           )}
 
