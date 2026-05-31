@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { identifyBirdStream } from './client';
+import { identifyBirdStream, resumeIdentificationStream } from './client';
 import type { StreamEvent } from '../types/observation';
 
 /** Build a fake fetch Response whose body streams the given SSE text chunks. */
@@ -103,5 +103,75 @@ describe('identifyBirdStream', () => {
     await expect(
       identifyBirdStream({ description: 'x', location: 'y' }, () => {}),
     ).rejects.toThrow('Could not connect to streaming endpoint');
+  });
+});
+
+describe('resumeIdentificationStream', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn());
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('POSTs the session_id + user_message to the resume endpoint', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      sseResponse([
+        dataLine({ type: 'session_id', session_id: 's-9' }),
+        dataLine({ type: 'done' }),
+      ]),
+    );
+
+    await resumeIdentificationStream(
+      { session_id: 's-9', user_message: 'It had a crest' },
+      () => {},
+    );
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/identify/resume'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ session_id: 's-9', user_message: 'It had a crest' }),
+      }),
+    );
+  });
+
+  it('delivers resumed events through onEvent', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      sseResponse([
+        dataLine({ type: 'session_id', session_id: 's-9' }),
+        dataLine({
+          type: 'result',
+          data: { message: 'Northern Cardinal.', alternate_species: [] },
+        }),
+        dataLine({ type: 'done' }),
+      ]),
+    );
+
+    const types: string[] = [];
+    await resumeIdentificationStream(
+      { session_id: 's-9', user_message: 'crest' },
+      (e) => types.push(e.type),
+    );
+
+    expect(types).toEqual(['session_id', 'result', 'done']);
+  });
+
+  it('returns silently when the caller aborts', async () => {
+    const controller = new AbortController();
+    vi.mocked(fetch).mockImplementation(() => {
+      controller.abort();
+      return Promise.reject(
+        new DOMException('Aborted', 'AbortError'),
+      );
+    });
+
+    await expect(
+      resumeIdentificationStream(
+        { session_id: 's-9', user_message: 'crest' },
+        () => {},
+        controller.signal,
+      ),
+    ).resolves.toBeUndefined();
   });
 });
