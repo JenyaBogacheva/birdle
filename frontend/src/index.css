@@ -2,46 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    @apply bg-black text-white overflow-hidden;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+}
+
 @layer utilities {
-  .animate-fade-in {
-    animation: fadeIn 0.3s ease-in;
+  .glass {
+    background: rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  .animate-bounce-slow {
-    animation: bounceSlow 3s ease-in-out infinite;
+  .text-primary {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .text-secondary {
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .text-faded {
+    color: rgba(255, 255, 255, 0.35);
+  }
+
+  .overlay {
+    background: rgba(0, 0, 0, 0.35);
   }
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+@keyframes typewriter {
+  from { width: 0; }
+  to { width: 100%; }
 }
 
-@keyframes bounceSlow {
-  0%, 100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-}
-
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+@keyframes crossOut {
+  0% { stroke-dashoffset: 200; }
+  100% { stroke-dashoffset: 0; }
 }

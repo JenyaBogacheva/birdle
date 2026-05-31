@@ -2,6 +2,7 @@
 Pydantic schemas for bird observation data.
 """
 
+from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -15,6 +16,15 @@ class ObservationInput(BaseModel):
     observed_at: Optional[str] = Field(None, description="When the bird was observed")
 
 
+class ResumeInput(BaseModel):
+    """Turn 2+ payload: resume a paused identification session with a reply."""
+
+    session_id: str = Field(..., min_length=1, description="Session id from turn 1")
+    user_message: str = Field(
+        ..., min_length=1, description="The user's answer to the pending question"
+    )
+
+
 class SpeciesInfo(BaseModel):
     """Information about a bird species."""
 
@@ -25,6 +35,18 @@ class SpeciesInfo(BaseModel):
     reasoning: Optional[str] = Field(None, description="Reasoning for the identification")
     image_url: Optional[str] = Field(None, description="URL to species image from Macaulay Library")
     image_credit: Optional[str] = Field(None, description="Photographer credit")
+
+
+class CandidateStatus(str, Enum):
+    considering = "considering"
+    eliminated = "eliminated"
+
+
+class CandidateUpdate(BaseModel):
+    name: str
+    species_code: str
+    status: CandidateStatus
+    reason: Optional[str] = None
 
 
 class RecommendationResponse(BaseModel):

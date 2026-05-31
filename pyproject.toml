@@ -16,6 +16,9 @@ anthropic = ">=0.52.0"
 tavily-python = ">=0.5.0"
 httpx = "^0.27.0"
 python-multipart = "^0.0.12"
+langgraph = "^1.2"
+langchain-anthropic = "^1.3"
+langchain-core = "^1.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.0"
@@ -39,7 +42,9 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
-ignore = []
+# black (line-length 100) owns formatting and does not split string literals,
+# so E501 on long prompt/description strings is noise — let the formatter decide.
+ignore = ["E501"]
 
 [tool.mypy]
 python_version = "3.11"

@@ -53,10 +53,14 @@ Observability: structured logging to stdout for manual review.
 ```
 
 Architecture principles:
-- Agentic flow: SPA -> FastAPI -> Claude agent (with tools) -> Response.
-- Agent decides what data to fetch (eBird, images, web search).
-- Stateless handling: each request contains needed context.
-- In-memory only: no database, temporary structures per call.
+- Agentic flow as a LangGraph: SPA -> FastAPI -> graph (guardrail -> resolve_inputs
+  -> investigate ⇄ tools -> confidence_gate -> submit/ask/inconclusive) -> SSE.
+- Agent decides what data to fetch (eBird, images, web search); the graph enforces
+  the hard truths (bird check, presence-before-concluding, frequency-before-HIGH).
+- Turn-based with human-in-the-loop: the agent can pause (`interrupt()`) to ask a
+  clarifying/disambiguation question and resume with the user's reply.
+- In-memory only: LangGraph `InMemorySaver` keyed by `session_id` (30-min idle TTL),
+  no database; a restart drops in-flight sessions and the client starts fresh.
 - Single process: eliminate cross-service coordination.
 
 ### 5. Data Model

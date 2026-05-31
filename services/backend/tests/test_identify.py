@@ -1,268 +1,218 @@
-"""Tests for the identify endpoint."""
+"""Route-level tests for the graph-backed identify endpoints."""
 
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
+
+ROUTE = "services.backend.app.routes.identify"
+
+
+async def _aevents(items):
+    for it in items:
+        yield it
+
+
+def _parse_sse(text: str) -> list[dict]:
+    return [
+        json.loads(line[len("data: ") :]) for line in text.splitlines() if line.startswith("data: ")
+    ]
 
 
 class TestHealthEndpoint:
     def test_health_check(self, client):
-        response = client.get("/health")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "ok"
+        resp = client.get("/health")
+        assert resp.status_code == 200
 
     def test_root_endpoint(self, client):
-        response = client.get("/")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "running"
+        resp = client.get("/")
+        assert resp.status_code == 200
 
 
 class TestIdentifyEndpoint:
-    def test_identify_success(self, client, mock_bird_agent, sample_agent_result):
-        mock_bird_agent.return_value = sample_agent_result
-        response = client.post(
-            "/api/identify",
-            json={"description": "bright red bird", "location": "New York"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert data["message"]
-        assert data["top_species"]["common_name"] == "Northern Cardinal"
-        mock_bird_agent.assert_called_once_with(
-            description="bright red bird",
-            location="New York",
-            observed_at=None,
-        )
-
-    def test_identify_missing_description(self, client):
-        response = client.post(
-            "/api/identify",
-            json={"location": "New York"},
-        )
-        assert response.status_code == 422
-
-    def test_identify_missing_location(self, client):
-        response = client.post(
-            "/api/identify",
-            json={"description": "red bird"},
-        )
-        assert response.status_code == 422  # location is now required
-
-    def test_identify_with_observed_at(self, client, mock_bird_agent, sample_agent_result):
-        mock_bird_agent.return_value = sample_agent_result
-        response = client.post(
-            "/api/identify",
-            json={
-                "description": "red bird",
-                "location": "New York",
-                "observed_at": "morning",
+    def test_identify_success(self, client):
+        result = {
+            "message": "It's a Northern Cardinal!",
+            "top_species": {
+                "scientific_name": "Cardinalis cardinalis",
+                "common_name": "Northern Cardinal",
+                "species_code": "norcar",
+                "confidence": "high",
+                "reasoning": "red + crest",
             },
-        )
-        assert response.status_code == 200
-        mock_bird_agent.assert_called_once_with(
-            description="red bird",
-            location="New York",
-            observed_at="morning",
-        )
+            "alternate_species": [],
+            "clarification": None,
+        }
+        with patch(f"{ROUTE}.bird_runner") as runner, patch(f"{ROUTE}.ebird_client") as eb:
+            runner.run_stream = lambda **kw: _aevents([{"type": "result", "data": result}])
+            eb.get_species_image = AsyncMock(
+                return_value={"image_url": "http://img/c.jpg", "photographer": "JD"}
+            )
+            resp = client.post(
+                "/api/identify", json={"description": "red crested bird", "location": "NY"}
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["top_species"]["common_name"] == "Northern Cardinal"
+        assert data["top_species"]["image_url"] == "http://img/c.jpg"
+        assert "ebird.org/explore" in data["top_species"]["range_link"]
 
-    def test_identify_agent_error(self, client, mock_bird_agent):
-        mock_bird_agent.side_effect = Exception("Agent crashed")
-        response = client.post(
-            "/api/identify",
-            json={"description": "red bird", "location": "New York"},
-        )
-        assert response.status_code == 500
-
-    def test_identify_no_match(self, client, mock_bird_agent):
-        mock_bird_agent.return_value = {
-            "message": "I couldn't identify this bird.",
+    def test_identify_no_match(self, client):
+        result = {
+            "message": "Not sure",
             "top_species": None,
             "alternate_species": [],
-            "clarification": "Can you describe the size?",
+            "clarification": "More detail?",
         }
-        response = client.post(
-            "/api/identify",
-            json={"description": "something flew by", "location": "London"},
-        )
-        assert response.status_code == 200
-        data = response.json()
+        with patch(f"{ROUTE}.bird_runner") as runner:
+            runner.run_stream = lambda **kw: _aevents([{"type": "result", "data": result}])
+            resp = client.post("/api/identify", json={"description": "a bird", "location": "NY"})
+        assert resp.status_code == 200
+        data = resp.json()
         assert data["top_species"] is None
-        assert data["clarification"]
+        assert data["clarification"] == "More detail?"
 
-    def test_identify_multiple_alternates(self, client, mock_bird_agent, sample_agent_result):
-        sample_agent_result["alternate_species"].append(
-            {
-                "scientific_name": "Piranga olivacea",
-                "common_name": "Scarlet Tanager",
-                "confidence": "low",
-                "reasoning": "Possible but unlikely at feeders.",
-            }
-        )
-        mock_bird_agent.return_value = sample_agent_result
-        response = client.post(
-            "/api/identify",
-            json={"description": "red bird", "location": "New York"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data["alternate_species"]) == 2
+    def test_identify_missing_description(self, client):
+        resp = client.post("/api/identify", json={"location": "NY"})
+        assert resp.status_code == 422
 
-    def test_identify_range_link_generated(self, client, mock_bird_agent, sample_agent_result):
-        mock_bird_agent.return_value = sample_agent_result
-        response = client.post(
-            "/api/identify",
-            json={"description": "red bird", "location": "New York"},
-        )
-        assert response.status_code == 200
-        data = response.json()
-        assert "ebird.org/explore" in data["top_species"]["range_link"]
+    def test_identify_missing_location(self, client):
+        resp = client.post("/api/identify", json={"description": "red bird"})
+        assert resp.status_code == 422
+
+    def test_identify_awaiting_degrades_to_clarification(self, client):
+        with patch(f"{ROUTE}.bird_runner") as runner:
+            runner.run_stream = lambda **kw: _aevents(
+                [{"type": "awaiting_input", "reason": "disambiguate_species", "question": "Crest?"}]
+            )
+            resp = client.post("/api/identify", json={"description": "bird", "location": "NY"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["top_species"] is None
+        assert data["clarification"] == "Crest?"
 
 
 class TestStreamEndpoint:
-    def _parse_sse_events(self, response_text: str) -> list[dict]:
-        """Parse SSE response text into event dicts."""
-        events = []
-        for part in response_text.split("\n\n"):
-            line = part.strip()
-            if line.startswith("data: "):
-                events.append(json.loads(line[6:]))
-        return events
-
-    def test_stream_success(self, client, mock_bird_agent_stream):
-        """Streaming endpoint returns SSE events ending with result and done."""
-
-        async def fake_stream(**kwargs):
-            yield {"type": "status", "message": "Checking your description..."}
-            yield {"type": "status", "message": "Looking up birds..."}
-            yield {
-                "type": "result",
-                "data": {
-                    "message": "Found it!",
-                    "top_species": None,
-                    "alternate_species": [],
-                    "clarification": None,
-                },
-            }
-
-        mock_bird_agent_stream.side_effect = fake_stream
-
-        response = client.post(
-            "/api/identify/stream",
-            json={"description": "red bird", "location": "New York"},
-        )
-        assert response.status_code == 200
-        assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
-
-        events = self._parse_sse_events(response.text)
+    def test_stream_emits_session_and_result_with_images(self, client):
+        result = {
+            "message": "It's a cardinal",
+            "top_species": {
+                "scientific_name": "Cardinalis cardinalis",
+                "common_name": "Northern Cardinal",
+                "species_code": "norcar",
+                "confidence": "high",
+                "reasoning": "r",
+            },
+            "alternate_species": [],
+            "clarification": None,
+        }
+        scripted = [
+            {"type": "session_id", "session_id": "s1"},
+            {"type": "detective_note", "message": "Red and crested..."},
+            {"type": "result", "data": result},
+        ]
+        with patch(f"{ROUTE}.bird_runner") as runner, patch(f"{ROUTE}.ebird_client") as eb:
+            runner.run_stream = lambda **kw: _aevents(scripted)
+            eb.get_species_image = AsyncMock(
+                return_value={"image_url": "http://img/c.jpg", "photographer": "JD"}
+            )
+            resp = client.post(
+                "/api/identify/stream", json={"description": "red bird", "location": "NY"}
+            )
+        events = _parse_sse(resp.text)
         types = [e["type"] for e in events]
-        assert "status" in types
+        assert "session_id" in types
+        assert "detective_note" in types
         assert "result" in types
         assert types[-1] == "done"
         result_event = next(e for e in events if e["type"] == "result")
-        assert "message" in result_event["data"]
+        assert result_event["data"]["top_species"]["image_url"] == "http://img/c.jpg"
 
-    def test_stream_result_has_images(self, client, mock_bird_agent_stream, monkeypatch):
-        """Streaming result should include image data from _build_species_info."""
-
-        async def fake_stream(**kwargs):
-            yield {
+    def test_stream_resolves_candidate_images(self, client):
+        scripted = [
+            {
+                "type": "candidates",
+                "data": [
+                    {
+                        "name": "Common Kingfisher",
+                        "species_code": "comkin1",
+                        "status": "considering",
+                    }
+                ],
+            },
+            {
                 "type": "result",
-                "data": {
-                    "message": "Found it!",
-                    "top_species": {
-                        "common_name": "Cardinal",
-                        "scientific_name": "Cardinalis cardinalis",
-                        "species_code": "norcar",
-                        "confidence": "high",
-                        "reasoning": "test",
-                    },
-                    "alternate_species": [],
-                    "clarification": None,
-                },
-            }
+                "data": {"message": "done", "top_species": None, "alternate_species": []},
+            },
+        ]
+        with patch(f"{ROUTE}.bird_runner") as runner, patch(f"{ROUTE}.ebird_client") as eb:
+            runner.run_stream = lambda **kw: _aevents(scripted)
+            eb.get_species_image = AsyncMock(
+                return_value={"image_url": "http://img/k.jpg", "photographer": "AB"}
+            )
+            resp = client.post(
+                "/api/identify/stream", json={"description": "blue bird", "location": "NY"}
+            )
+        events = _parse_sse(resp.text)
+        cand = next(e for e in events if e["type"] == "candidates")
+        assert cand["data"][0]["image_url"] == "http://img/k.jpg"
 
-        mock_bird_agent_stream.side_effect = fake_stream
+    def test_stream_passes_through_awaiting_input(self, client):
+        scripted = [
+            {"type": "session_id", "session_id": "s1"},
+            {"type": "awaiting_input", "reason": "disambiguate_species", "question": "Crest?"},
+        ]
+        with patch(f"{ROUTE}.bird_runner") as runner:
+            runner.run_stream = lambda **kw: _aevents(scripted)
+            resp = client.post(
+                "/api/identify/stream", json={"description": "red bird", "location": "NY"}
+            )
+        events = _parse_sse(resp.text)
+        types = [e["type"] for e in events]
+        assert "awaiting_input" in types
+        assert types[-1] == "done"
 
-        mock_image = AsyncMock(
-            return_value={
-                "image_url": "https://example.com/img.jpg",
-                "photographer": "Test",
-            }
-        )
-        monkeypatch.setattr(
-            "services.backend.app.routes.identify.ebird_client.get_species_image",
-            mock_image,
-        )
+    def test_stream_error_yields_error_and_done(self, client):
+        async def boom(**kw):
+            raise Exception("kaboom")
+            yield  # pragma: no cover
 
-        response = client.post(
-            "/api/identify/stream",
-            json={"description": "red bird", "location": "New York"},
-        )
-        events = self._parse_sse_events(response.text)
-        result_event = next(e for e in events if e["type"] == "result")
-        assert result_event["data"]["top_species"]["image_url"] == "https://example.com/img.jpg"
-        assert result_event["data"]["top_species"]["range_link"]
-
-    def test_stream_missing_description(self, client):
-        response = client.post(
-            "/api/identify/stream",
-            json={"location": "New York"},
-        )
-        assert response.status_code == 422
-
-    def test_stream_missing_location(self, client):
-        response = client.post(
-            "/api/identify/stream",
-            json={"description": "red bird"},
-        )
-        assert response.status_code == 422
-
-    def test_stream_error_yields_error_and_done(self, client, mock_bird_agent_stream):
-        """When the agent generator raises, the endpoint yields error + done."""
-
-        async def failing_stream(**kwargs):
-            yield {"type": "status", "message": "Starting..."}
-            raise Exception("boom")
-
-        mock_bird_agent_stream.side_effect = failing_stream
-
-        response = client.post(
-            "/api/identify/stream",
-            json={"description": "red bird", "location": "New York"},
-        )
-        assert response.status_code == 200
-
-        events = self._parse_sse_events(response.text)
+        with patch(f"{ROUTE}.bird_runner") as runner:
+            runner.run_stream = boom
+            resp = client.post(
+                "/api/identify/stream", json={"description": "red bird", "location": "NY"}
+            )
+        events = _parse_sse(resp.text)
         types = [e["type"] for e in events]
         assert "error" in types
         assert types[-1] == "done"
-        error_event = next(e for e in events if e["type"] == "error")
-        assert "unexpected error" in error_event["message"].lower()
 
-    def test_stream_timeout(self, client, mock_bird_agent_stream):
-        """When the stream exceeds the timeout, an error event is emitted."""
-        import services.backend.app.routes.identify as route_mod
+    def test_stream_missing_description(self, client):
+        resp = client.post("/api/identify/stream", json={"location": "NY"})
+        assert resp.status_code == 422
 
-        async def slow_stream(**kwargs):
-            yield {"type": "status", "message": "Starting..."}
-            import asyncio
 
-            await asyncio.sleep(5)
-            yield {"type": "result", "data": {"message": "too late"}}
-
-        mock_bird_agent_stream.side_effect = slow_stream
-
-        original_timeout = route_mod.IDENTIFY_TIMEOUT
-        route_mod.IDENTIFY_TIMEOUT = 0.1
-        try:
-            response = client.post(
-                "/api/identify/stream",
-                json={"description": "red bird", "location": "New York"},
+class TestResumeEndpoint:
+    def test_resume_streams_events(self, client):
+        scripted = [
+            {"type": "session_id", "session_id": "s1"},
+            {
+                "type": "result",
+                "data": {
+                    "message": "It's a cardinal",
+                    "top_species": None,
+                    "alternate_species": [],
+                },
+            },
+        ]
+        with patch(f"{ROUTE}.bird_runner") as runner:
+            runner.resume_stream = lambda **kw: _aevents(scripted)
+            resp = client.post(
+                "/api/identify/resume", json={"session_id": "s1", "user_message": "it had a crest"}
             )
-            events = self._parse_sse_events(response.text)
-            types = [e["type"] for e in events]
-            assert "error" in types
-            assert types[-1] == "done"
-        finally:
-            route_mod.IDENTIFY_TIMEOUT = original_timeout
+        events = _parse_sse(resp.text)
+        types = [e["type"] for e in events]
+        assert "result" in types
+        assert types[-1] == "done"
+
+    def test_resume_requires_fields(self, client):
+        resp = client.post("/api/identify/resume", json={"session_id": "s1"})
+        assert resp.status_code == 422

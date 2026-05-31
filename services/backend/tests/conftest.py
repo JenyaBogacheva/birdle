@@ -8,8 +8,6 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-test-key-not-real")
 os.environ.setdefault("TAVILY_API_KEY", "tvly-test-key-not-real")
 os.environ.setdefault("EBIRD_TOKEN", "ebird-test-token-not-real")
 
-from unittest.mock import AsyncMock
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -20,35 +18,6 @@ from services.backend.app.main import app
 def client():
     """FastAPI test client."""
     return TestClient(app)
-
-
-@pytest.fixture
-def mock_bird_agent(monkeypatch):
-    """Mock the bird_agent.identify method."""
-    mock = AsyncMock()
-    monkeypatch.setattr(
-        "services.backend.app.routes.identify.bird_agent.identify",
-        mock,
-    )
-    return mock
-
-
-@pytest.fixture
-def mock_bird_agent_stream(monkeypatch):
-    """Mock the bird_agent.identify_stream method.
-
-    Use ``mock.side_effect = my_async_gen_func`` in tests – the mock
-    directly calls the async-generator function so the result is an
-    async iterator (not a coroutine wrapping one).
-    """
-    from unittest.mock import MagicMock
-
-    mock = MagicMock()
-    monkeypatch.setattr(
-        "services.backend.app.routes.identify.bird_agent.identify_stream",
-        mock,
-    )
-    return mock
 
 
 @pytest.fixture
