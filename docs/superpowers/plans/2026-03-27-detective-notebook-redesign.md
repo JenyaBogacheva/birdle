@@ -12,6 +12,24 @@
 
 ---
 
+## Reconciliation (2026-06-01) — READ FIRST
+
+This plan was written **before** the LangGraph + human-in-the-loop (HITL) migration landed on `main` (PR #16). The backend and several frontend foundations are now **already done**. The remaining work is the frontend detective UI, and it MUST preserve the HITL turn-taking that shipped in `Home.tsx`.
+
+**Already complete — DO NOT re-execute:**
+- **Tasks 1–5 (backend):** detective tooling exists, adapted to LangGraph (`detective_note` / `candidates` SSE events emit with image resolution, two-tier tool budget, detective system prompt). Verified in the merged `services/backend/app/graph/` + `routes/identify.py`.
+- **Task 6 (deps/styles):** `roughjs@4.6.6` installed, Caveat font in `index.html`, `glass`/`typewriter`/`crossOut` in `index.css`, `font-hand`/`drawIn` in `tailwind.config.js`. All present.
+- **Task 7 (types):** `CandidateInfo`, `AppPhase`, `AwaitingInput`, `ResumeInput`, and the full `StreamEvent` union (incl. `session_id`, `detective_note`, `candidates`, `awaiting_input`) are all in `frontend/src/types/observation.ts`. Done.
+
+**Remaining work:** Tasks 8–13 verbatim, Task 14 verbatim, **NEW Task 14b**, **REVISED Task 15** (folds in HITL), then verification Tasks 16–18.
+
+**HITL reconciliation — overrides the original Task 15:**
+- The original Task 15 deletes `Home.tsx` and creates a `BirdleApp` that calls only `identifyBirdStream`. That would **regress** the merged HITL feature. The revised Task 15 below keeps `session_id` tracking, `awaiting_input` handling, and `resumeIdentificationStream`.
+- **Delete list correction:** delete `Home.tsx`, `Home.test.tsx`, `ResultPanel.tsx`, `SpeciesCard.tsx`. **KEEP `AwaitingInputPrompt.tsx` + `AwaitingInputPrompt.test.tsx`** (restyled in Task 14b), **KEEP `client.ts` + `client.test.ts`**.
+- **Export style:** existing tested components (`BirdForm`, `AwaitingInputPrompt`) keep their **named** exports. New detective components use **default** exports per the plan. `BirdleApp` imports each accordingly.
+
+---
+
 ## File Structure
 
 ### Backend (modify)
@@ -1517,29 +1535,96 @@ git commit -m "feat: restyle BirdForm with frosted glass, Caveat font, Investiga
 
 ---
 
-## Task 15: Frontend — BirdleApp main page (phase state machine)
+## Task 14b: Frontend — Restyle AwaitingInputPrompt for the notebook (HITL)
+
+The merged `AwaitingInputPrompt` is styled for the old pink/blue UI. Restyle it for the detective notebook aesthetic (frosted glass + Caveat). **Keep the same props, the same named export, and the same behavior** so `AwaitingInputPrompt.test.tsx` keeps passing (its assertions are on roles/text/`aria-label`, not on Tailwind classes).
+
+**Files:**
+- Modify: `frontend/src/components/AwaitingInputPrompt.tsx`
+
+- [ ] **Step 1: Confirm the existing tests pass before changing styles**
+
+Run: `cd frontend && npx vitest run src/components/AwaitingInputPrompt.test.tsx`
+Expected: PASS (6 tests)
+
+- [ ] **Step 2: Restyle (classes only — do not touch logic, props, or the `onAnswer`/chips/free-text/`aria-label="Your answer"` contract)**
+
+Replace the markup styling with the notebook look. Reference styling (adjust to match sibling detective components):
+
+```typescript
+// outer container
+<div className="glass rounded-xl p-5 space-y-4 animate-fade-in">
+  <p className="font-hand text-secondary text-xl leading-relaxed">{question}</p>
+  {/* option chips */}
+  <button
+    type="button"
+    disabled={disabled}
+    onClick={() => onAnswer(opt)}
+    className="px-4 py-2 rounded-full border border-dashed border-white/30 font-hand text-secondary hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40 disabled:opacity-40 transition-colors"
+  >
+    {opt}
+  </button>
+  {/* free-text form */}
+  <input
+    type="text"
+    aria-label="Your answer"
+    className="flex-1 bg-white/5 border border-dashed border-white/20 rounded-lg px-4 py-2 text-primary placeholder-white/30 focus:outline-none focus:border-white/40 disabled:opacity-50"
+  />
+  <button
+    type="submit"
+    disabled={disabled || !text.trim()}
+    className="glass rounded-lg px-5 py-2 font-hand text-primary hover:bg-white/10 disabled:opacity-30 transition-colors"
+  >
+    Answer →
+  </button>
+</div>
+```
+
+Keep the `🐦` icon or drop it — your call for the aesthetic; the tests do not assert on it.
+
+- [ ] **Step 3: Run the component tests + build**
+
+Run: `cd frontend && npx vitest run src/components/AwaitingInputPrompt.test.tsx && npm run build`
+Expected: 6 tests PASS, build PASS
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add frontend/src/components/AwaitingInputPrompt.tsx
+git commit -m "feat: restyle AwaitingInputPrompt for detective notebook aesthetic"
+```
+
+---
+
+## Task 15: Frontend — BirdleApp main page (phase state machine + HITL)
+
+**REVISED for HITL** (see Reconciliation section). `BirdleApp` must preserve the human-in-the-loop turn-taking from `Home.tsx`: track `session_id`, render the agent's clarifying question during the thinking phase, and resume via `resumeIdentificationStream`.
 
 **Files:**
 - Create: `frontend/src/pages/BirdleApp.tsx`
+- Create: `frontend/src/pages/BirdleApp.test.tsx`
 - Modify: `frontend/src/main.tsx` (update import)
+- Delete: `frontend/src/pages/Home.tsx`, `frontend/src/pages/Home.test.tsx`, `frontend/src/components/ResultPanel.tsx`, `frontend/src/components/SpeciesCard.tsx`
 
-- [ ] **Step 1: Create BirdleApp**
+- [ ] **Step 1: Create BirdleApp (HITL-aware)**
 
 ```typescript
 // frontend/src/pages/BirdleApp.tsx
 import { useState, useCallback, useRef, useEffect } from 'react';
 import BirdBackground from '../components/BirdBackground';
 import PencilAnnotations from '../components/PencilAnnotations';
-import BirdForm from '../components/BirdForm';
+import { BirdForm } from '../components/BirdForm';
 import DetectiveNotes, { cannedNoteForEvent } from '../components/DetectiveNotes';
 import CandidateBoard from '../components/CandidateBoard';
 import ResultOverlay from '../components/ResultOverlay';
-import { identifyBirdStream } from '../api/client';
+import { AwaitingInputPrompt } from '../components/AwaitingInputPrompt';
+import { identifyBirdStream, resumeIdentificationStream } from '../api/client';
 import type {
   ObservationInput,
   RecommendationResponse,
   CandidateInfo,
   AppPhase,
+  AwaitingInput,
   StreamEvent,
 } from '../types/observation';
 
@@ -1561,7 +1646,9 @@ export default function BirdleApp() {
   const [candidates, setCandidates] = useState<CandidateInfo[]>([]);
   const [result, setResult] = useState<RecommendationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [awaiting, setAwaiting] = useState<AwaitingInput | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
   const phaseRef = useRef<AppPhase>(phase);
   // Keep ref in sync so the stream callback always sees current phase
   useEffect(() => { phaseRef.current = phase; }, [phase]);
@@ -1573,6 +1660,9 @@ export default function BirdleApp() {
 
   const handleStreamEvent = useCallback((event: StreamEvent) => {
     switch (event.type) {
+      case 'session_id':
+        sessionIdRef.current = event.session_id;
+        break;
       case 'status': {
         const canned = cannedNoteForEvent('status');
         if (canned && phaseRef.current !== 'thinking') addNote(canned);
@@ -1594,7 +1684,12 @@ export default function BirdleApp() {
         if (canned) addNote(canned);
         break;
       }
+      case 'awaiting_input':
+        // Agent paused to ask a clarifying / disambiguation question.
+        setAwaiting({ reason: event.reason, question: event.question, options: event.options });
+        break;
       case 'result':
+        setAwaiting(null);
         // Phase 3: Reveal — crossfade to winner
         if (event.data.top_species?.image_url) {
           setBackgroundSrc(event.data.top_species.image_url);
@@ -1610,6 +1705,7 @@ export default function BirdleApp() {
         const canned = cannedNoteForEvent('error');
         if (canned) addNote(canned);
         setError(event.message);
+        setAwaiting(null);
         break;
       }
       case 'done':
@@ -1619,17 +1715,18 @@ export default function BirdleApp() {
   }, [addNote]);
 
   const handleSubmit = async (observation: ObservationInput) => {
-    // Reset state
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
+    sessionIdRef.current = null;
     setPhase('thinking');
     setIsLoading(true);
     setNotes([]);
     setCandidates([]);
     setResult(null);
     setError(null);
+    setAwaiting(null);
 
     try {
       await identifyBirdStream(observation, handleStreamEvent, controller.signal);
@@ -1641,13 +1738,46 @@ export default function BirdleApp() {
     }
   };
 
+  const handleAnswer = async (message: string) => {
+    const sessionId = sessionIdRef.current;
+    if (!sessionId) {
+      setError('Lost the session. Please start a new identification.');
+      setAwaiting(null);
+      return;
+    }
+
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setAwaiting(null);
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await resumeIdentificationStream(
+        { session_id: sessionId, user_message: message },
+        handleStreamEvent,
+        controller.signal,
+      );
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+      addNote('Hmm, hit a snag...');
+      setIsLoading(false);
+    }
+  };
+
   const handleReset = () => {
+    abortRef.current?.abort();
+    sessionIdRef.current = null;
     setPhase('landing');
     setBackgroundSrc(LANDING_BIRD_URL);
     setNotes([]);
     setCandidates([]);
     setResult(null);
     setError(null);
+    setAwaiting(null);
     setIsLoading(false);
   };
 
@@ -1670,11 +1800,25 @@ export default function BirdleApp() {
         </>
       )}
 
-      {/* Phase 2: Thinking */}
+      {/* Phase 2: Thinking (+ HITL pause) */}
       {(phase === 'thinking' || phase === 'reveal') && (
         <>
           <DetectiveNotes notes={notes} />
           <CandidateBoard candidates={candidates} />
+
+          {/* HITL: the detective turns to ask you a question */}
+          {awaiting && !isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center p-8 z-20">
+              <div className="w-full max-w-lg">
+                <AwaitingInputPrompt
+                  question={awaiting.question}
+                  options={awaiting.options}
+                  onAnswer={handleAnswer}
+                />
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="absolute bottom-8 left-8 right-8">
               <div className="glass rounded-lg p-4 max-w-md">
@@ -1700,37 +1844,98 @@ export default function BirdleApp() {
 }
 ```
 
-- [ ] **Step 2: Update main.tsx to use BirdleApp**
+- [ ] **Step 2: Write BirdleApp integration tests**
 
-The entry point is `frontend/src/main.tsx` (there is no `App.tsx`). Find the import of `Home` and replace:
+Port the three `Home.test.tsx` integration tests to `BirdleApp` and add one HITL resume test. Mock `../api/client`. Reference:
+
+```typescript
+// frontend/src/pages/BirdleApp.test.tsx
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import BirdleApp from './BirdleApp';
+import type { StreamEvent } from '../types/observation';
+
+vi.mock('../api/client', () => ({
+  identifyBirdStream: vi.fn(),
+  resumeIdentificationStream: vi.fn(),
+}));
+
+import { identifyBirdStream, resumeIdentificationStream } from '../api/client';
+
+const submitObservation = async () => {
+  const user = userEvent.setup();
+  await user.type(screen.getByPlaceholderText(/blue feathers|saw/i), 'a small blue bird');
+  // BirdForm requires location too — match its placeholder
+  const where = screen.queryByPlaceholderText(/central park|where/i);
+  if (where) await user.type(where, 'Central Park, NY');
+  await user.click(screen.getByRole('button', { name: /investigate/i }));
+  return user;
+};
+
+describe('BirdleApp HITL', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders the clarifying prompt on awaiting_input and resumes on answer', async () => {
+    (identifyBirdStream as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_obs, onEvent: (e: StreamEvent) => void) => {
+        onEvent({ type: 'session_id', session_id: 'sess-123' });
+        onEvent({ type: 'awaiting_input', reason: 'disambiguate', question: 'Did it have a crest?', options: ['Yes', 'No'] });
+        onEvent({ type: 'done' });
+      },
+    );
+    (resumeIdentificationStream as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    render(<BirdleApp />);
+    const user = await submitObservation();
+
+    await waitFor(() => expect(screen.getByText('Did it have a crest?')).toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Yes' }));
+    await waitFor(() =>
+      expect(resumeIdentificationStream).toHaveBeenCalledWith(
+        { session_id: 'sess-123', user_message: 'Yes' },
+        expect.any(Function),
+        expect.any(AbortSignal),
+      ),
+    );
+  });
+});
+```
+
+Adjust placeholder/role matchers to whatever the restyled `BirdForm` (Task 14) actually renders. The point is: prompt appears on `awaiting_input`, and clicking an option calls `resumeIdentificationStream` with the captured `session_id`.
+
+- [ ] **Step 3: Update main.tsx to use BirdleApp**
+
+`frontend/src/main.tsx` currently has `import { Home } from './pages/Home'` and renders `<Home />`. Replace with:
 
 ```typescript
 import BirdleApp from './pages/BirdleApp';
-// In the JSX, replace <Home /> with <BirdleApp />
+// ...render <BirdleApp /> instead of <Home />
 ```
 
-- [ ] **Step 3: Delete old components**
+- [ ] **Step 4: Delete superseded files (keep AwaitingInputPrompt + client + their tests)**
 
 Delete:
 - `frontend/src/pages/Home.tsx`
+- `frontend/src/pages/Home.test.tsx`
 - `frontend/src/components/ResultPanel.tsx`
 - `frontend/src/components/SpeciesCard.tsx`
 
-- [ ] **Step 4: Verify build**
+Do NOT delete `AwaitingInputPrompt.tsx`, `AwaitingInputPrompt.test.tsx`, `client.ts`, or `client.test.ts`.
 
-Run: `cd frontend && npm run build`
-Expected: PASS
+- [ ] **Step 5: Verify build, lint, and the full test suite**
 
-- [ ] **Step 5: Run lint**
-
-Run: `cd frontend && npm run lint`
-Expected: PASS (or fix any issues)
+Run: `cd frontend && npm run build && npm run lint && npm test`
+Expected: build PASS, lint PASS (0 warnings), all tests PASS (BirdleApp HITL test + AwaitingInputPrompt + client + smoke)
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add -A
-git commit -m "feat: add BirdleApp phase state machine, wire up all components, remove old UI"
+git commit -m "feat: add BirdleApp phase state machine with HITL, wire up components, remove old UI"
 ```
 
 ---
