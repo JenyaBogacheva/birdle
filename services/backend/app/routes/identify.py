@@ -40,10 +40,19 @@ async def _build_species_info(data: dict) -> SpeciesInfo:
             image_url = image_data.get("image_url")
             image_credit = image_data.get("photographer")
 
+    # eBird's canonical species page is keyed by species code; the `explore?q=`
+    # search endpoint does not deep-link to a species, so fall back to it only
+    # when we somehow lack a code.
+    range_link = (
+        f"https://ebird.org/species/{species_code}"
+        if species_code
+        else f"https://ebird.org/explore?q={quote_plus(common_name)}"
+    )
+
     return SpeciesInfo(
         scientific_name=data.get("scientific_name", "Unknown"),
         common_name=common_name,
-        range_link=f"https://ebird.org/explore?q={quote_plus(common_name)}",
+        range_link=range_link,
         confidence=data.get("confidence"),
         reasoning=data.get("reasoning"),
         image_url=image_url,
