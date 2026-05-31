@@ -143,6 +143,8 @@ export function Home() {
   const handleAnswer = async (message: string) => {
     const sessionId = sessionIdRef.current;
     if (!sessionId) {
+      // No retry button here on purpose: the session is gone, so the only
+      // recovery is a fresh submission via the form above.
       setError('Lost the session. Please start a new identification.');
       setAwaiting(null);
       return;
@@ -156,6 +158,7 @@ export function Home() {
     setAwaiting(null);
     setIsLoading(true);
     setError(null);
+    setResult(null);
     setCanRetry(false);
     setStatusMessage('');
     setThinkingText('');

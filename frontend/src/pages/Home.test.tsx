@@ -87,6 +87,7 @@ describe('Home — HITL resume flow', () => {
     expect(
       await screen.findByText('It is a Northern Cardinal.'),
     ).toBeInTheDocument();
+    expect(screen.queryByText('Crest or no crest?')).not.toBeInTheDocument();
   });
 
   it('shows an error if answered after the session was lost', async () => {
