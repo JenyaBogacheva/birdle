@@ -2,11 +2,11 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.types import Command
 
 import services.backend.app.graph.nodes as N  # noqa: N812  (concise test alias)
-from services.backend.app.graph import build
+from services.backend.app.graph import build, prompts
 
 
 def _ai_tool(name, args, call_id="c1"):
@@ -86,7 +86,12 @@ class TestCompiledGraph:
                     "description": "red crested bird",
                     "location": "New York",
                     "observed_at": None,
-                    "messages": [],
+                    # Seed the transcript the way runner.run_stream does in production:
+                    # SystemMessage(SYSTEM_PROMPT) first, then the observation HumanMessage.
+                    "messages": [
+                        SystemMessage(content=prompts.SYSTEM_PROMPT),
+                        HumanMessage(content="red crested bird in New York"),
+                    ],
                     "ask_rounds": 0,
                     "final": None,
                 },
@@ -94,6 +99,12 @@ class TestCompiledGraph:
             )
 
         assert state["final"]["top_species"]["common_name"] == "Northern Cardinal"
+
+        # Regression: the transcript reaching the agent must contain exactly one
+        # SystemMessage. resolve_inputs previously appended a second (non-consecutive)
+        # SystemMessage, which Anthropic rejects ("multiple non-consecutive system messages").
+        first_investigate_messages = fake_model.ainvoke.call_args_list[0].args[0]
+        assert sum(isinstance(m, SystemMessage) for m in first_investigate_messages) == 1
 
     async def test_interrupt_then_resume_round_trip(self):
         """ask_user pauses the compiled graph; Command(resume=...) continues to submit.

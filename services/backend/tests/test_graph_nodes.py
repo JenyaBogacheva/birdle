@@ -93,6 +93,31 @@ class TestResolveInputs:
         intr.assert_not_called()
         assert out["region"] is None
 
+    async def test_context_is_not_a_second_system_message(self):
+        # The transcript already starts with SystemMessage(SYSTEM_PROMPT); resolve_inputs
+        # must NOT emit another SystemMessage, or Anthropic rejects the transcript with
+        # "multiple non-consecutive system messages". The resolved context is a human-turn note.
+        with (
+            patch.object(
+                nodes,
+                "_parse_inputs",
+                new=AsyncMock(return_value={"region_code": "US-NY", "observed_window": "recent"}),
+            ),
+            patch.object(nodes, "ebird_client") as eb,
+        ):
+            eb.get_region_info = AsyncMock(return_value={"code": "US-NY"})
+            out = await nodes.resolve_inputs(
+                {
+                    "description": "red bird",
+                    "location": "New York",
+                    "observed_at": None,
+                    "ask_rounds": 0,
+                }
+            )
+        ctx = out["messages"][0]
+        assert not isinstance(ctx, SystemMessage)
+        assert isinstance(ctx, HumanMessage)
+
 
 class TestInvestigateNode:
     async def test_seeds_system_prompt_and_user_message_first_turn(self):

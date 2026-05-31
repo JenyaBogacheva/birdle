@@ -134,7 +134,7 @@ async def resolve_inputs(state: BirdState) -> dict[str, Any]:
     if window == "unparseable":
         window = "recent"
 
-    context = SystemMessage(
+    context = HumanMessage(
         content=(
             f"Resolved region: {region or 'UNKNOWN (proceed description-only, lower confidence)'}. "
             f"Observation window: {window}. "
