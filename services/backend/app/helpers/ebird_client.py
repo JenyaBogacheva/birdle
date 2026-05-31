@@ -281,6 +281,71 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
             )
             return None
 
+    async def get_historic_birds(
+        self, region: str, year: int, month: int, day: int, max_results: int = 200
+    ) -> dict[str, Any]:
+        """
+        Species reported in a region on a specific past date (season anchor).
+
+        Returns an empty ``species_observed`` list on any error — never raises.
+        """
+        date_str = f"{year:04d}-{month:02d}-{day:02d}"
+        fallback: dict[str, Any] = {
+            "region": region,
+            "date": date_str,
+            "species_observed": [],
+        }
+        start_time = time.time()
+        try:
+            url = f"{EBIRD_API_BASE}/data/obs/{region}/historic/{year}/{month}/{day}"
+            headers = {"X-eBirdApiToken": settings.ebird_token}
+            params = {"maxResults": max_results}
+
+            resp = await self._client.get(url, headers=headers, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+
+            species_map: dict[str, dict[str, Any]] = {}
+            for obs in data:
+                code = obs.get("speciesCode", "")
+                key = code or obs.get("comName", "Unknown")
+                if key not in species_map:
+                    species_map[key] = {
+                        "common_name": obs.get("comName", "Unknown"),
+                        "scientific_name": obs.get("sciName", ""),
+                        "species_code": code,
+                    }
+
+            logger.info(
+                "eBird historic observations fetched",
+                extra={
+                    "operation": "get_historic_birds",
+                    "region": region,
+                    "date": date_str,
+                    "species_count": len(species_map),
+                    "latency_ms": round((time.time() - start_time) * 1000, 2),
+                    "status": "success",
+                },
+            )
+            return {
+                "region": region,
+                "date": date_str,
+                "species_observed": list(species_map.values()),
+            }
+        except Exception as e:
+            logger.warning(
+                f"eBird historic observations failed: {e}",
+                extra={
+                    "operation": "get_historic_birds",
+                    "region": region,
+                    "date": date_str,
+                    "latency_ms": round((time.time() - start_time) * 1000, 2),
+                    "status": "error",
+                    "error_type": type(e).__name__,
+                },
+            )
+            return fallback
+
     async def get_species_image(self, species_code: str) -> Optional[dict[str, str]]:
         """
         Fetch the top-rated photo for a species from Macaulay Library.

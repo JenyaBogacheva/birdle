@@ -207,3 +207,28 @@ class TestLookupFamily:
         ebird = eBirdClient()
         ebird._client.get = AsyncMock(side_effect=Exception("boom"))
         assert await ebird.lookup_family("norcar") is None
+
+
+class TestGetHistoricBirds:
+    async def test_success_dedupes(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = [
+            {"comName": "Dark-eyed Junco", "sciName": "Junco hyemalis", "speciesCode": "daejun"},
+            {"comName": "Dark-eyed Junco", "sciName": "Junco hyemalis", "speciesCode": "daejun"},
+        ]
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        result = await ebird.get_historic_birds("US-NY", 2026, 1, 15)
+
+        assert result["region"] == "US-NY"
+        assert result["date"] == "2026-01-15"
+        assert len(result["species_observed"]) == 1
+        assert result["species_observed"][0]["species_code"] == "daejun"
+
+    async def test_error_returns_empty(self):
+        ebird = eBirdClient()
+        ebird._client.get = AsyncMock(side_effect=Exception("boom"))
+        result = await ebird.get_historic_birds("US-NY", 2026, 1, 15)
+        assert result["species_observed"] == []
