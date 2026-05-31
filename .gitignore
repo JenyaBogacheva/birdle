@@ -54,3 +54,6 @@ dist-ssr/
 logs
 *.log
 frontend/.vite/
+
+# Superpowers brainstorm artifacts
+.superpowers/
