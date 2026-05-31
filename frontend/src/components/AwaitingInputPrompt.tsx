@@ -29,13 +29,10 @@ export function AwaitingInputPrompt({
   };
 
   return (
-    <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-5 shadow-sm space-y-4">
-      <div className="flex items-start gap-3">
-        <span className="text-2xl">🐦</span>
-        <p className="text-base font-medium text-blue-900 leading-relaxed">
-          {question}
-        </p>
-      </div>
+    <div className="glass rounded-xl p-5 space-y-4 animate-fade-in">
+      <p className="font-hand text-secondary text-xl leading-relaxed">
+        {question}
+      </p>
 
       {options && options.length > 0 && (
         <div className="flex flex-wrap gap-2">
@@ -45,7 +42,7 @@ export function AwaitingInputPrompt({
               type="button"
               disabled={disabled}
               onClick={() => onAnswer(opt)}
-              className="px-4 py-2 bg-white border border-blue-400 text-blue-700 text-sm font-medium rounded-full hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 rounded-full border border-dashed border-white/30 font-hand text-secondary hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {opt}
             </button>
@@ -61,12 +58,12 @@ export function AwaitingInputPrompt({
           onChange={(e) => setText(e.target.value)}
           placeholder="type your answer... ✍️"
           disabled={disabled}
-          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50"
+          className="flex-1 bg-white/5 border border-dashed border-white/20 rounded-lg px-4 py-2 text-primary placeholder-white/30 focus:outline-none focus:border-white/40 disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={disabled || !text.trim()}
-          className="px-5 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="glass rounded-lg px-5 py-2 font-hand text-primary hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
           send 📨
         </button>
