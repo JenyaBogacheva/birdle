@@ -232,3 +232,23 @@ class TestGetHistoricBirds:
         ebird._client.get = AsyncMock(side_effect=Exception("boom"))
         result = await ebird.get_historic_birds("US-NY", 2026, 1, 15)
         assert result["species_observed"] == []
+
+
+class TestGetRegionSpeciesList:
+    async def test_success(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = ["norcar", "blujay", "amerob"]
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        result = await ebird.get_region_species_list("US-NY")
+
+        assert "norcar" in result
+        assert len(result) == 3
+
+    async def test_error_returns_empty(self):
+        ebird = eBirdClient()
+        ebird._client.get = AsyncMock(side_effect=Exception("boom"))
+        result = await ebird.get_region_species_list("US-NY")
+        assert result == []

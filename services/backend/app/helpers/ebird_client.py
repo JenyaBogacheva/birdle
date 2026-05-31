@@ -346,6 +346,31 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
             )
             return fallback
 
+    async def get_region_species_list(self, region: str) -> list[str]:
+        """
+        All species codes ever recorded in a region (plausibility backstop).
+
+        Returns an empty list on any error — never raises.
+        """
+        try:
+            url = f"{EBIRD_API_BASE}/product/spplist/{region}"
+            headers = {"X-eBirdApiToken": settings.ebird_token}
+            resp = await self._client.get(url, headers=headers)
+            resp.raise_for_status()
+            data = resp.json()
+            return data if isinstance(data, list) else []
+        except Exception as e:
+            logger.warning(
+                f"eBird species list failed: {e}",
+                extra={
+                    "operation": "get_region_species_list",
+                    "region": region,
+                    "status": "error",
+                    "error_type": type(e).__name__,
+                },
+            )
+            return []
+
     async def get_species_image(self, species_code: str) -> Optional[dict[str, str]]:
         """
         Fetch the top-rated photo for a species from Macaulay Library.
