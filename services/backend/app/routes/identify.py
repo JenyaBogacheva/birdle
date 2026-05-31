@@ -1,32 +1,37 @@
-"""Bird identification endpoint."""
+"""Bird identification endpoints (LangGraph-backed, turn-based)."""
 
 import asyncio
 import json
 import logging
 import time
+from collections.abc import AsyncIterator
 from urllib.parse import quote_plus
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from ..helpers.bird_agent import bird_agent
+from ..graph import session_store
+from ..graph.runner import bird_runner
 from ..helpers.ebird_client import ebird_client
-from ..schemas.observation import ObservationInput, RecommendationResponse, SpeciesInfo
+from ..schemas.observation import (
+    ObservationInput,
+    RecommendationResponse,
+    ResumeInput,
+    SpeciesInfo,
+)
 
 logger = logging.getLogger(__name__)
 
-# Timeout for the entire identification flow
-IDENTIFY_TIMEOUT = 90.0  # 90 seconds total
+IDENTIFY_TIMEOUT = 60.0
 
 router = APIRouter(prefix="/api", tags=["identification"])
 
 
 async def _build_species_info(data: dict) -> SpeciesInfo:
-    """Build SpeciesInfo from agent result dict, fetching image by species_code."""
+    """Build SpeciesInfo from an agent species dict, fetching its image."""
     common_name = data.get("common_name", "Unknown")
     species_code = data.get("species_code", "")
 
-    # Fetch image from Macaulay Library if we have a species code
     image_url = None
     image_credit = None
     if species_code:
@@ -46,219 +51,152 @@ async def _build_species_info(data: dict) -> SpeciesInfo:
     )
 
 
-@router.post("/identify", response_model=RecommendationResponse)
-async def identify_bird(observation: ObservationInput) -> RecommendationResponse:
-    """Identify a bird based on user observation."""
-    request_start = time.time()
+async def _build_response(agent_data: dict) -> RecommendationResponse:
+    """Resolve images for top + alternates and assemble the response."""
+    image_tasks = []
+    if agent_data.get("top_species"):
+        image_tasks.append(_build_species_info(agent_data["top_species"]))
+    for alt in agent_data.get("alternate_species", []):
+        image_tasks.append(_build_species_info(alt))
 
-    logger.info(
-        "Identification request started",
-        extra={
-            "operation": "identify_bird",
-            "description_length": len(observation.description),
-            "location": observation.location,
-        },
+    built = await asyncio.gather(*image_tasks) if image_tasks else []
+    if agent_data.get("top_species") and built:
+        top_species = built[0]
+        alternate_species = list(built[1:])
+    else:
+        top_species = None
+        alternate_species = list(built)
+
+    return RecommendationResponse(
+        message=agent_data.get("message", ""),
+        top_species=top_species,
+        alternate_species=alternate_species,
+        clarification=agent_data.get("clarification"),
     )
 
+
+async def _sse_from_runner(events: AsyncIterator[dict], request_start: float) -> AsyncIterator[str]:
+    """Shared SSE adapter: resolve images for candidates/result, pass others through."""
+    start_time = time.time()
     try:
-        result = await asyncio.wait_for(
-            bird_agent.identify(
+        async for event in events:
+            if time.time() - start_time > IDENTIFY_TIMEOUT:
+                yield f'data: {json.dumps({"type": "error", "message": "Request timed out. Please try again."})}\n\n'
+                yield f'data: {json.dumps({"type": "done"})}\n\n'
+                return
+
+            etype = event.get("type")
+            if etype == "candidates":
+                candidates = event["data"]
+
+                async def resolve_image(candidate: dict) -> dict:
+                    if candidate.get("status") == "considering" and candidate.get("species_code"):
+                        img = await ebird_client.get_species_image(candidate["species_code"])
+                        if img:
+                            candidate["image_url"] = img["image_url"]
+                            candidate["image_credit"] = img.get("photographer")
+                    return candidate
+
+                event["data"] = list(await asyncio.gather(*[resolve_image(c) for c in candidates]))
+                yield f"data: {json.dumps(event)}\n\n"
+            elif etype == "result":
+                yield f'data: {json.dumps({"type": "status", "message": "Fetching photos..."})}\n\n'
+                response = await _build_response(event["data"])
+                yield f'data: {json.dumps({"type": "result", "data": response.model_dump()})}\n\n'
+            else:
+                yield f"data: {json.dumps(event)}\n\n"
+
+        yield f'data: {json.dumps({"type": "done"})}\n\n'
+    except Exception as e:
+        logger.error(
+            f"Streaming identification failed: {e}",
+            exc_info=True,
+            extra={
+                "operation": "identify_sse",
+                "total_latency_ms": round((time.time() - request_start) * 1000, 2),
+                "status": "error",
+            },
+        )
+        yield f'data: {json.dumps({"type": "error", "message": "An unexpected error occurred. Please try again."})}\n\n'
+        yield f'data: {json.dumps({"type": "done"})}\n\n'
+
+
+@router.post("/identify", response_model=RecommendationResponse)
+async def identify_bird(observation: ObservationInput) -> RecommendationResponse:
+    """Non-streaming identify: run the graph to completion and return the final."""
+    session_id = session_store.create()
+    try:
+        final: dict | None = None
+
+        async def _run() -> None:
+            nonlocal final
+            async for event in bird_runner.run_stream(
+                session_id=session_id,
                 description=observation.description,
                 location=observation.location,
                 observed_at=observation.observed_at,
-            ),
-            timeout=IDENTIFY_TIMEOUT,
-        )
+            ):
+                if event["type"] == "result":
+                    final = event["data"]
+                elif event["type"] == "awaiting_input":
+                    final = {
+                        "message": event.get("question", "Could you tell me more?"),
+                        "top_species": None,
+                        "alternate_species": [],
+                        "clarification": event.get("question"),
+                    }
+                    return
 
-        # Build response — fetch images in parallel (outside agent loop)
-        top_species = None
-        image_tasks = []
-        if result.get("top_species"):
-            image_tasks.append(_build_species_info(result["top_species"]))
-        for alt in result.get("alternate_species", []):
-            image_tasks.append(_build_species_info(alt))
-
-        built = await asyncio.gather(*image_tasks) if image_tasks else []
-
-        if result.get("top_species") and built:
-            top_species = built[0]
-            alternate_species = list(built[1:])
-        else:
-            alternate_species = list(built)
-
-        response = RecommendationResponse(
-            message=result.get("message", ""),
-            top_species=top_species,
-            alternate_species=alternate_species,
-            clarification=result.get("clarification"),
-        )
-
-        total_latency_ms = (time.time() - request_start) * 1000
-        logger.info(
-            "Identification request completed",
-            extra={
-                "operation": "identify_bird",
-                "total_latency_ms": round(total_latency_ms, 2),
-                "has_top_species": top_species is not None,
-                "status": "success",
-            },
-        )
-        return response
-
+        await asyncio.wait_for(_run(), timeout=IDENTIFY_TIMEOUT)
+        if final is None:
+            raise HTTPException(status_code=500, detail="No result produced.")
+        return await _build_response(final)
     except asyncio.TimeoutError:
-        total_latency_ms = (time.time() - request_start) * 1000
-        logger.error(
-            "Identification request timeout",
-            extra={
-                "operation": "identify_bird",
-                "total_latency_ms": round(total_latency_ms, 2),
-                "timeout_seconds": IDENTIFY_TIMEOUT,
-                "status": "timeout",
-            },
-        )
         raise HTTPException(
-            status_code=504,
-            detail=f"Request timed out after {IDENTIFY_TIMEOUT} seconds.",
+            status_code=504, detail=f"Request timed out after {IDENTIFY_TIMEOUT} seconds."
         )
-
     except HTTPException:
         raise
-
     except Exception as e:
-        total_latency_ms = (time.time() - request_start) * 1000
         logger.error(
-            f"Identification request failed: {e}",
-            extra={
-                "operation": "identify_bird",
-                "total_latency_ms": round(total_latency_ms, 2),
-                "error": str(e),
-                "error_type": type(e).__name__,
-                "status": "error",
-            },
+            f"Identification failed: {e}",
             exc_info=True,
+            extra={"operation": "identify_bird", "status": "error"},
         )
         raise HTTPException(status_code=500, detail="An unexpected error occurred.")
 
 
 @router.post("/identify/stream")
-async def identify_bird_stream(observation: ObservationInput):
-    """Stream bird identification progress via SSE."""
+async def identify_bird_stream(observation: ObservationInput) -> StreamingResponse:
+    """Turn 1: stream a fresh identification (SSE), creating a session."""
     request_start = time.time()
-
-    logger.info(
-        "Streaming identification request started",
-        extra={
-            "operation": "identify_bird_stream",
-            "description_length": len(observation.description),
-            "location": observation.location,
+    session_id = session_store.create()
+    events = bird_runner.run_stream(
+        session_id=session_id,
+        description=observation.description,
+        location=observation.location,
+        observed_at=observation.observed_at,
+    )
+    return StreamingResponse(
+        _sse_from_runner(events, request_start),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
         },
     )
 
-    async def event_generator():
-        start_time = time.time()
-        try:
-            async for event in bird_agent.identify_stream(
-                description=observation.description,
-                location=observation.location,
-                observed_at=observation.observed_at,
-            ):
-                if time.time() - start_time > IDENTIFY_TIMEOUT:
-                    logger.error(
-                        "Streaming request timeout",
-                        extra={
-                            "operation": "identify_bird_stream",
-                            "total_latency_ms": round((time.time() - request_start) * 1000, 2),
-                            "status": "timeout",
-                        },
-                    )
-                    timeout_msg = "Request timed out. Please try again."
-                    payload = {"type": "error", "message": timeout_msg}
-                    yield f"data: {json.dumps(payload)}\n\n"
-                    yield f'data: {json.dumps({"type": "done"})}\n\n'
-                    return
 
-                # Intercept candidates events to resolve Macaulay images
-                if event.get("type") == "candidates":
-                    candidates = event["data"]
-
-                    async def resolve_image(candidate: dict) -> dict:
-                        if candidate.get("status") == "considering" and candidate.get("species_code"):
-                            img = await ebird_client.get_species_image(candidate["species_code"])
-                            if img:
-                                candidate["image_url"] = img["image_url"]
-                                candidate["image_credit"] = img.get("photographer")
-                        return candidate
-
-                    resolved = await asyncio.gather(*[resolve_image(c) for c in candidates])
-                    event["data"] = list(resolved)
-                    yield f"data: {json.dumps(event)}\n\n"
-
-                # Intercept result events to fetch images and build RecommendationResponse
-                elif event.get("type") == "result":
-                    agent_data = event["data"]
-
-                    status_msg = {"type": "status", "message": "Fetching photos..."}
-                    yield f"data: {json.dumps(status_msg)}\n\n"
-
-                    # Build species info with images (same as non-streaming path)
-                    top_species = None
-                    image_tasks = []
-                    if agent_data.get("top_species"):
-                        image_tasks.append(_build_species_info(agent_data["top_species"]))
-                    for alt in agent_data.get("alternate_species", []):
-                        image_tasks.append(_build_species_info(alt))
-
-                    built = await asyncio.gather(*image_tasks) if image_tasks else []
-
-                    if agent_data.get("top_species") and built:
-                        top_species = built[0]
-                        alternate_species = list(built[1:])
-                    else:
-                        alternate_species = list(built)
-
-                    response = RecommendationResponse(
-                        message=agent_data.get("message", ""),
-                        top_species=top_species,
-                        alternate_species=alternate_species,
-                        clarification=agent_data.get("clarification"),
-                    )
-
-                    result_payload = {
-                        "type": "result",
-                        "data": response.model_dump(),
-                    }
-                    yield f"data: {json.dumps(result_payload)}\n\n"
-                else:
-                    yield f"data: {json.dumps(event)}\n\n"
-
-            total_latency_ms = (time.time() - request_start) * 1000
-            logger.info(
-                "Streaming identification completed",
-                extra={
-                    "operation": "identify_bird_stream",
-                    "total_latency_ms": round(total_latency_ms, 2),
-                    "status": "success",
-                },
-            )
-            yield f'data: {json.dumps({"type": "done"})}\n\n'
-
-        except Exception as e:
-            logger.error(
-                f"Streaming identification failed: {e}",
-                exc_info=True,
-                extra={
-                    "operation": "identify_bird_stream",
-                    "total_latency_ms": round((time.time() - request_start) * 1000, 2),
-                    "status": "error",
-                },
-            )
-            err_msg = "An unexpected error occurred. Please try again."
-            err_payload = {"type": "error", "message": err_msg}
-            yield f"data: {json.dumps(err_payload)}\n\n"
-            yield f'data: {json.dumps({"type": "done"})}\n\n'
-
+@router.post("/identify/resume")
+async def identify_bird_resume(payload: ResumeInput) -> StreamingResponse:
+    """Turn 2+: resume a paused session with the user's reply (SSE)."""
+    request_start = time.time()
+    events = bird_runner.resume_stream(
+        session_id=payload.session_id, user_message=payload.user_message
+    )
     return StreamingResponse(
-        event_generator(),
+        _sse_from_runner(events, request_start),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
