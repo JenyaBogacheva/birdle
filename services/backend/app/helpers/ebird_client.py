@@ -42,7 +42,6 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
         fallback: dict[str, Any] = {
             "region": region,
             "days_searched": days,
-            "total_observations": 0,
             "species_observed": [],
         }
 
@@ -55,28 +54,27 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
             resp.raise_for_status()
             data = resp.json()
 
-            # Group observations by species and count
+            # /recent can return multiple rows for the same species; dedupe to a
+            # presence list. We do NOT count rows — counts here are not a reliable
+            # frequency signal (use get_species_frequency for abundance).
             species_map: dict[str, dict[str, Any]] = {}
             for obs in data:
-                name = obs.get("comName", "Unknown")
-                if name not in species_map:
-                    species_map[name] = {
-                        "common_name": name,
+                code = obs.get("speciesCode", "")
+                # eBird effectively always provides speciesCode; comName fallback
+                # is purely defensive so dedupe never collapses distinct species.
+                key = code or obs.get("comName", "Unknown")
+                if key not in species_map:
+                    species_map[key] = {
+                        "common_name": obs.get("comName", "Unknown"),
                         "scientific_name": obs.get("sciName", ""),
-                        "species_code": obs.get("speciesCode", ""),
-                        "observation_count": 0,
+                        "species_code": code,
                     }
-                species_map[name]["observation_count"] += 1
 
-            sorted_species = sorted(
-                species_map.values(), key=lambda s: s["observation_count"], reverse=True
-            )[:max_results]
-
+            species = list(species_map.values())[:max_results]
             result = {
                 "region": region,
                 "days_searched": days,
-                "total_observations": len(data),
-                "species_observed": sorted_species,
+                "species_observed": species,
             }
             latency_ms = (time.time() - start_time) * 1000
             logger.info(
@@ -84,7 +82,7 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
                 extra={
                     "operation": "get_regional_birds",
                     "region": region,
-                    "species_count": len(sorted_species),
+                    "species_count": len(species),
                     "latency_ms": round(latency_ms, 2),
                     "status": "success",
                 },

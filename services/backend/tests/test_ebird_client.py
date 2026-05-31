@@ -6,25 +6,13 @@ from services.backend.app.helpers.ebird_client import eBirdClient
 
 
 class TestGetRegionalBirds:
-    async def test_success(self):
+    async def test_success_dedupes_without_count(self):
         ebird = eBirdClient()
         mock_response = MagicMock()
         mock_response.json.return_value = [
-            {
-                "comName": "Northern Cardinal",
-                "sciName": "Cardinalis cardinalis",
-                "speciesCode": "norcar",
-            },
-            {
-                "comName": "Northern Cardinal",
-                "sciName": "Cardinalis cardinalis",
-                "speciesCode": "norcar",
-            },
-            {
-                "comName": "Blue Jay",
-                "sciName": "Cyanocitta cristata",
-                "speciesCode": "blujay",
-            },
+            {"comName": "Northern Cardinal", "sciName": "Cardinalis cardinalis", "speciesCode": "norcar"},
+            {"comName": "Northern Cardinal", "sciName": "Cardinalis cardinalis", "speciesCode": "norcar"},
+            {"comName": "Blue Jay", "sciName": "Cyanocitta cristata", "speciesCode": "blujay"},
         ]
         mock_response.raise_for_status = MagicMock()
         ebird._client.get = AsyncMock(return_value=mock_response)
@@ -32,9 +20,11 @@ class TestGetRegionalBirds:
         result = await ebird.get_regional_birds("US-NY", days=14)
 
         assert result["region"] == "US-NY"
-        assert len(result["species_observed"]) == 2
-        assert result["species_observed"][0]["common_name"] == "Northern Cardinal"
-        assert result["species_observed"][0]["observation_count"] == 2
+        assert len(result["species_observed"]) == 2  # deduped
+        first = result["species_observed"][0]
+        assert first["common_name"] == "Northern Cardinal"
+        assert first["species_code"] == "norcar"
+        assert "observation_count" not in first  # phantom count removed
 
     async def test_api_error_returns_fallback(self):
         ebird = eBirdClient()
@@ -43,7 +33,7 @@ class TestGetRegionalBirds:
         result = await ebird.get_regional_birds("US-NY")
 
         assert result["species_observed"] == []
-        assert result["total_observations"] == 0
+        assert "total_observations" not in result
 
 
 class TestGetSpeciesImage:
