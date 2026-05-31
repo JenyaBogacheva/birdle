@@ -905,3 +905,14 @@ git commit -m "feat: add region drill-down (subregions + region info) to eBird c
 **Type consistency:** `_abundance_bucket` returns the same band strings used in `get_species_frequency`. New methods reuse existing `EBIRD_API_BASE`, `settings.ebird_token`, `self._client`, `logger`, and the `Any`/`Optional` imports already present (`ebird_client.py:9`). `_family_cache` is initialized in `__init__` (Task 4 Step 3) before use. Return-shape keys (`species_observed`, `abundance`, `rarities`, `report_count`, `capped`) are consistent across tasks and match what Plan 2 will consume. ✅
 
 **Note for Plan 2:** which of these become agent-facing tools (`get_species_frequency`, `get_regional_rarities`, `lookup_family`) vs. internal-only (`get_historic_birds`, `get_region_species_list`, region drill) is decided in Plan 2, along with raising `MAX_DATA_TOOL_CALLS` from 8 to ~12.
+
+## Status: COMPLETE (2026-05-31)
+
+All 7 tasks implemented via subagent-driven development (fresh implementer + spec & quality review each). Commits `aafa0b0` → `38b8d1c` on branch `feat/detective-notebook-redesign`. Verification: 76/76 backend tests pass, ruff clean, black clean, mypy 0 errors. Scope stayed in `ebird_client.py` + `test_ebird_client.py`.
+
+### Follow-ups deferred to Plan 2 (from code review — non-blocking)
+
+- **Observability gap:** `get_region_species_list`, `get_subregions`, `get_region_info`, and `lookup_family` have no success-path `logger.info` and omit `latency_ms` from error logs (the other 4 methods record it). Add for parity before production load.
+- **Dedupe duplication:** identical first-seen dedupe logic now lives in `get_regional_birds`, `get_historic_birds`, and (a variant in) `get_regional_rarities`. Consider extracting a private `_dedupe_observations(data) -> list[dict]` helper if the dedupe key ever needs to change.
+- **Minor test coverage:** the `isinstance(data, list)` fallback branches in `get_region_species_list` / `get_subregions` are untested (malformed-response case).
+- **`get_historic_birds`** does not apply a local `[:max_results]` slice after dedupe (relies on the server-side `maxResults` param); add the slice if parity with `get_regional_birds` is wanted.
