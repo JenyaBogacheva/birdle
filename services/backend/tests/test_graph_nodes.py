@@ -96,3 +96,22 @@ class TestInvestigateNode:
         sent = fake_model.ainvoke.call_args.args[0]
         # No duplicate system seeding: exactly the existing messages are sent.
         assert sent == existing
+
+
+def _ai_with_tool_call(name, args, call_id="call_1"):
+    return AIMessage(content="", tool_calls=[{"name": name, "args": args, "id": call_id}])
+
+
+class TestAskUserNode:
+    async def test_closes_tool_call_and_appends_answer(self):
+        ai = _ai_with_tool_call(
+            "ask_user", {"reason": "disambiguate_species", "question": "Crest or no crest?"}
+        )
+        with patch.object(nodes, "interrupt", return_value="It had a crest"):
+            out = await nodes.ask_user({"messages": [ai], "ask_rounds": 0})
+        kinds = [type(m).__name__ for m in out["messages"]]
+        assert "ToolMessage" in kinds   # the ask_user tool call is closed
+        assert "HumanMessage" in kinds  # the user's answer is appended
+        assert out["ask_rounds"] == 1
+        human = next(m for m in out["messages"] if isinstance(m, HumanMessage))
+        assert "crest" in human.content.lower()

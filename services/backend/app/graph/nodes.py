@@ -189,3 +189,39 @@ async def investigate(state: BirdState) -> dict[str, Any]:
 
     response = await _agent_model().ainvoke(messages)
     return {"messages": [response]}
+
+
+def _last_terminal_tool_call(messages: list[Any]) -> Optional[dict[str, Any]]:
+    """The first tool_call on the last AIMessage, if it's an AIMessage with calls."""
+    if not messages:
+        return None
+    last = messages[-1]
+    calls: Optional[list[dict[str, Any]]] = getattr(last, "tool_calls", None)
+    if calls:
+        return calls[0]
+    return None
+
+
+async def ask_user(state: BirdState) -> dict[str, Any]:
+    """Disambiguation HITL: close the ask_user tool call, interrupt, resume w/ answer."""
+    messages = state.get("messages", [])
+    call = _last_terminal_tool_call(messages) or {}
+    call_id = call.get("id", "ask_user")
+    args = call.get("args", {})
+
+    payload: dict[str, Any] = {
+        "reason": args.get("reason", "disambiguate_species"),
+        "question": args.get("question", "Could you tell me one more distinguishing detail?"),
+    }
+    if args.get("options"):
+        payload["options"] = args["options"]
+
+    # Close the open tool call so the transcript stays valid for Anthropic.
+    closing = ToolMessage(content="asked", tool_call_id=call_id)
+
+    answer = interrupt(payload)  # JSON-serializable payload; resumes with the user's reply
+
+    return {
+        "messages": [closing, HumanMessage(content=str(answer))],
+        "ask_rounds": state.get("ask_rounds", 0) + 1,
+    }
