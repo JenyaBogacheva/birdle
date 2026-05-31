@@ -2,7 +2,7 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from services.backend.app.graph import nodes, prompts
 
@@ -70,3 +70,29 @@ class TestResolveInputs:
             )
         intr.assert_not_called()
         assert out["region"] is None
+
+
+class TestInvestigateNode:
+    async def test_seeds_system_prompt_and_user_message_first_turn(self):
+        fake_model = MagicMock()
+        fake_model.ainvoke = AsyncMock(return_value=AIMessage(content="thinking..."))
+        with patch.object(nodes, "_agent_model", return_value=fake_model):
+            out = await nodes.investigate(
+                {"messages": [], "description": "red crested bird", "location": "NY"}
+            )
+        # The model was called with a SystemMessage seeded first.
+        sent = fake_model.ainvoke.call_args.args[0]
+        assert isinstance(sent[0], SystemMessage)
+        assert any(isinstance(m, HumanMessage) for m in sent)
+        # Node returns the AI response to append.
+        assert isinstance(out["messages"][0], AIMessage)
+
+    async def test_does_not_reseed_when_messages_exist(self):
+        fake_model = MagicMock()
+        fake_model.ainvoke = AsyncMock(return_value=AIMessage(content="more"))
+        existing = [SystemMessage(content="sys"), HumanMessage(content="hi")]
+        with patch.object(nodes, "_agent_model", return_value=fake_model):
+            await nodes.investigate({"messages": existing, "description": "x", "location": "y"})
+        sent = fake_model.ainvoke.call_args.args[0]
+        # No duplicate system seeding: exactly the existing messages are sent.
+        assert sent == existing

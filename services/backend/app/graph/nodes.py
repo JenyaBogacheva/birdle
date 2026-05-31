@@ -151,3 +151,41 @@ async def resolve_inputs(state: BirdState) -> dict[str, Any]:
         "ask_rounds": ask_rounds,
         "messages": [context],
     }
+
+
+_AGENT_MODEL_SINGLETON: Optional[Any] = None
+
+
+def _agent_model() -> Any:
+    """Lazily build the tool-bound, thinking-enabled Sonnet model (cached).
+
+    tool_choice is left at its default (auto): Anthropic forbids forcing tool
+    use while extended thinking is enabled.
+    """
+    global _AGENT_MODEL_SINGLETON
+    if _AGENT_MODEL_SINGLETON is None:
+        model = ChatAnthropic(  # type: ignore[call-arg]
+            model=prompts.AGENT_MODEL,
+            max_tokens=prompts.AGENT_MAX_TOKENS,
+            thinking={"type": "enabled", "budget_tokens": prompts.THINKING_BUDGET_TOKENS},
+            api_key=settings.anthropic_api_key,  # type: ignore[arg-type]
+        )
+        _AGENT_MODEL_SINGLETON = model.bind_tools(ALL_TOOLS)
+    return _AGENT_MODEL_SINGLETON
+
+
+async def investigate(state: BirdState) -> dict[str, Any]:
+    """The investigative LLM turn. Seeds system + user message on the first turn."""
+    messages = list(state.get("messages", []))
+    if not messages:
+        user = (
+            f"I observed a bird...\n\n"
+            f"Description: {state.get('description', '')}\n"
+            f"Location: {state.get('location', '')}"
+        )
+        if state.get("observed_at"):
+            user += f"\nObserved at: {state['observed_at']}"
+        messages = [SystemMessage(content=prompts.SYSTEM_PROMPT), HumanMessage(content=user)]
+
+    response = await _agent_model().ainvoke(messages)
+    return {"messages": [response]}
