@@ -16,6 +16,15 @@ class ObservationInput(BaseModel):
     observed_at: Optional[str] = Field(None, description="When the bird was observed")
 
 
+class ResumeInput(BaseModel):
+    """Turn 2+ payload: resume a paused identification session with a reply."""
+
+    session_id: str = Field(..., min_length=1, description="Session id from turn 1")
+    user_message: str = Field(
+        ..., min_length=1, description="The user's answer to the pending question"
+    )
+
+
 class SpeciesInfo(BaseModel):
     """Information about a bird species."""
 
