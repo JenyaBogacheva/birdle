@@ -21,7 +21,7 @@ from typing import Any, Optional
 
 from langchain_core.messages import AIMessage, ToolMessage
 
-from .prompts import MAX_ASK_ROUNDS, MAX_DATA_TOOL_CALLS
+from .prompts import MAX_ASK_ROUNDS, MAX_DATA_TOOL_CALLS, MAX_GATE_BOUNCES
 from .tools import DATA_TOOL_NAMES, TRACE_TOOL_NAMES
 
 # Re-export for tests / build.py
@@ -106,18 +106,21 @@ def route_after_investigate(state: dict[str, Any]) -> str:
 
     if name == "submit_identification":
         args = call.get("args", {})
+        # A failed guard normally bounces back to investigate (via gate_feedback),
+        # but after MAX_GATE_BOUNCES we stop looping and conclude honestly.
+        bounced_out = state.get("gate_bounces", 0) >= MAX_GATE_BOUNCES
         # Guard 1: presence before concluding.
         if not (
             _called_tool(messages, "get_regional_birds")
             or _called_tool(messages, "get_historic_birds")
         ):
-            return "investigate"
+            return "inconclusive" if bounced_out else "investigate"
         # Guard 2: frequency before HIGH confidence.
         top = args.get("top_species") or {}
         if top.get("confidence") == "high":
             code = top.get("species_code", "")
             if not code or not _frequency_checked_for(messages, code):
-                return "investigate"
+                return "inconclusive" if bounced_out else "investigate"
         return "submit_id"
 
     # Unknown tool name -> conclude honestly rather than loop.

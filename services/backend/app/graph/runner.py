@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator
 from typing import Any, Optional
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 
 from . import prompts
@@ -29,7 +30,11 @@ class BirdGraphRunner:
         self._store = store
 
     def _config(self, session_id: str) -> dict[str, Any]:
-        return {"configurable": {"thread_id": session_id}}
+        # recursion_limit must comfortably exceed the tool budgets: each tool
+        # call is two supersteps (investigate + tools), so 12 data + ~20 trace
+        # calls is ~64 visits. 150 leaves headroom; a true runaway loop trips it
+        # and is translated into an honest "inconclusive" below.
+        return {"configurable": {"thread_id": session_id}, "recursion_limit": 150}
 
     async def _drive(self, session_id: str, graph_input: Any) -> AsyncIterator[dict[str, Any]]:
         """Shared streaming core for both fresh runs and resumes."""
@@ -65,6 +70,14 @@ class BirdGraphRunner:
                 snap = await self._graph.aget_state(config)
                 final = (snap.values or {}).get("final") if snap else None
                 yield {"type": "result", "data": final or dict(prompts.FALLBACK_RESPONSE)}
+        except GraphRecursionError:
+            # Runaway investigation/bounce loop — conclude honestly rather than
+            # surfacing a generic error.
+            logger.warning(
+                "Graph hit recursion limit; returning inconclusive",
+                extra={"operation": "graph_runner", "status": "recursion_limit"},
+            )
+            yield {"type": "result", "data": dict(prompts.FALLBACK_RESPONSE)}
         except Exception as e:
             logger.error(
                 f"Graph run failed: {e}",

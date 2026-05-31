@@ -10,6 +10,9 @@ AGENT_MODEL = "claude-sonnet-4-6"
 # frequency calls. Ask-round cap forces an honest "inconclusive" after 2 asks.
 MAX_DATA_TOOL_CALLS = 12
 MAX_ASK_ROUNDS = 2
+# After this many guard bounces (submit rejected -> investigate), give up and
+# return an honest "inconclusive" instead of looping.
+MAX_GATE_BOUNCES = 2
 
 # Extended-thinking budget (must be < max_tokens). tool_choice MUST stay auto
 # when thinking is enabled (Anthropic constraint) — never force tool use.
@@ -68,13 +71,12 @@ Use the resolved region you are given. Prefer the most specific region code.
 
 ## Grounding rules (enforced)
 
-- You MUST consult regional presence (get_regional_birds, or get_historic data
-  for a past date) before submitting an identification.
+- You MUST consult regional presence (get_regional_birds) before submitting an
+  identification.
 - You MUST frequency-check your top candidate (get_species_frequency for its
   species_code) before claiming HIGH confidence.
 - If you are told the sighting's window is a specific past date, reason about
-  whether the bird is plausible at THAT time of year (migration/seasonality),
-  and prefer date-anchored evidence.
+  whether the bird is plausible at THAT time of year (migration/seasonality).
 
 ## Colloquial descriptions
 

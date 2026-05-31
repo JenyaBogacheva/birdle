@@ -48,7 +48,8 @@ def gate_feedback(state: BirdState) -> dict[str, Any]:
     return {
         "messages": [
             ToolMessage(content=routing.guard_feedback_message(reason), tool_call_id=call_id)
-        ]
+        ],
+        "gate_bounces": state.get("gate_bounces", 0) + 1,
     }
 
 

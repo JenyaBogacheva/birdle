@@ -30,6 +30,7 @@ class BirdState(TypedDict, total=False):
     observed_window: str  # "recent" or a historic "YYYY-MM-DD"
     # HITL bookkeeping
     ask_rounds: int
+    gate_bounces: int  # times a terminal was bounced back by a failed guard
     # Terminal payload (set by submit_id / inconclusive / guardrail bail)
     final: Optional[dict[str, Any]]
 

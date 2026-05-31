@@ -107,3 +107,25 @@ class TestRouteAfterInvestigate:
         assert (
             routing.route_after_investigate({"messages": msgs, "ask_rounds": 0}) == "inconclusive"
         )
+
+    def test_submit_guard_failure_inconclusive_after_bounce_cap(self):
+        # Presence guard unmet, but we've already bounced the cap -> stop looping.
+        state = {
+            "messages": [
+                _ai("submit_identification", {"top_species": None, "alternate_species": []})
+            ],
+            "ask_rounds": 0,
+            "gate_bounces": routing.MAX_GATE_BOUNCES,
+        }
+        assert routing.route_after_investigate(state) == "inconclusive"
+
+    def test_submit_guard_failure_bounces_while_under_cap(self):
+        # One bounce so far (< cap) -> still bounce back to investigate.
+        state = {
+            "messages": [
+                _ai("submit_identification", {"top_species": None, "alternate_species": []})
+            ],
+            "ask_rounds": 0,
+            "gate_bounces": routing.MAX_GATE_BOUNCES - 1,
+        }
+        assert routing.route_after_investigate(state) == "investigate"
