@@ -195,7 +195,11 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
         try:
             url = f"{EBIRD_API_BASE}/data/obs/{region}/recent/notable"
             headers = {"X-eBirdApiToken": settings.ebird_token}
-            params = {"back": days, "maxResults": max_results, "detail": "simple"}
+            params: dict[str, str | int] = {
+                "back": days,
+                "maxResults": max_results,
+                "detail": "simple",
+            }
 
             resp = await self._client.get(url, headers=headers, params=params)
             resp.raise_for_status()
