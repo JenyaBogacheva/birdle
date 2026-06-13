@@ -14,38 +14,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.11'
-
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      - name: Cache Poetry dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pypoetry
-          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-poetry-
+          enable-cache: true
 
       - name: Install dependencies
-        run: poetry install --no-interaction
+        run: uv sync --frozen
 
       - name: Run Ruff linter
-        run: poetry run ruff check services/
+        run: uv run ruff check services/
 
       - name: Run Black formatter check
-        run: poetry run black --check services/
+        run: uv run black --check services/
 
       - name: Run mypy type checker
-        run: poetry run mypy services/backend/app --ignore-missing-imports
+        run: uv run mypy services/backend/app --ignore-missing-imports
 
       - name: Run pytest
-        run: poetry run pytest services/backend/tests/ -v
+        run: uv run pytest services/backend/tests/ -v
 
   frontend:
     name: Frontend Checks

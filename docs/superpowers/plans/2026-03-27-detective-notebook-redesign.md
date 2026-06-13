@@ -1,5 +1,15 @@
 # Detective Notebook Redesign Implementation Plan
 
+> ⛔ **SHELVED (2026-06-13).** This frontend redesign is not being pursued. The
+> elaborate notebook UI (rough.js hand-drawn overlays, Caveat handwriting font,
+> full-bleed photography, phased state machine) is a large rewrite for mostly
+> aesthetic payoff and has been dropped. **The backend half already shipped and
+> stays:** the `detective_note` / `update_candidates` trace tools (see
+> `services/backend/app/graph/tools.py`) still emit their SSE events. The
+> current frontend may render those lightly (notes list + candidate chips), but
+> the skeuomorphic notebook described below is abandoned. Kept for historical
+> context only.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Transform Birdle from a gradient form-based app into an immersive naturalist detective notebook with full-bleed bird photography, frosted glass panels, rough.js hand-drawn annotations, and a phased investigation flow.

@@ -29,6 +29,9 @@ MANIFEST
 .mypy_cache/
 .ruff_cache/
 
+# uv / virtualenv
+.venv/
+
 # Node
 node_modules/
 .pnpm-store/

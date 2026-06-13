@@ -46,18 +46,21 @@ npm run lint         # ESLint (--max-warnings 0)
 ```
 
 ### Backend (from project root)
+Dependencies are managed with **uv** (Python 3.14, pinned in `.python-version`).
+Run `uv sync` once to create `.venv` and install deps + the `dev` group.
 ```bash
-poetry run uvicorn services.backend.app.main:app --reload --host 0.0.0.0 --port 8000
-poetry run pytest services/backend/tests/ -v          # Run all tests
-poetry run pytest services/backend/tests/test_identify.py -v  # Single test file
-poetry run ruff check services/                        # Lint
-poetry run black --check services/                     # Format check
-poetry run mypy services/backend/app --ignore-missing-imports  # Type check
-poetry run pre-commit run --all-files                  # All pre-commit hooks
+uv sync                                                # Create/refresh .venv from uv.lock
+uv run uvicorn services.backend.app.main:app --reload --host 0.0.0.0 --port 8000
+uv run pytest services/backend/tests/ -v               # Run all tests
+uv run pytest services/backend/tests/test_identify.py -v  # Single test file
+uv run ruff check services/                            # Lint
+uv run black --check services/                         # Format check
+uv run mypy services/backend/app --ignore-missing-imports  # Type check
+uv run pre-commit run --all-files                      # All pre-commit hooks
 ```
 
 ### CI (GitHub Actions)
-Backend: ruff → black → mypy → pytest. Frontend: npm ci → tsc build → eslint.
+Backend: uv sync → ruff → black → mypy → pytest. Frontend: npm ci → tsc build → eslint.
 
 ## Development Workflow
 
