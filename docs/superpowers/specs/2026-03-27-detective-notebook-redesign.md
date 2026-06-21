@@ -1,5 +1,11 @@
 # Birdle Detective Notebook Redesign
 
+> ⛔ **SHELVED (2026-06-13).** This redesign is not being pursued — see the
+> banner in `docs/superpowers/plans/2026-03-27-detective-notebook-redesign.md`.
+> The backend trace tools (`detective_note` / `update_candidates`) shipped and
+> remain; the full hand-drawn notebook UI below is abandoned. Kept for
+> historical context only.
+
 Full UI redesign transforming Birdle from a gradient form-based app into an immersive naturalist detective notebook experience. Full-bleed bird photography, frosted glass panels, hand-drawn rough.js annotations, and a phased investigation flow.
 
 ## Motivation

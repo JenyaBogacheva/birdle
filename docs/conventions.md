@@ -10,8 +10,8 @@
 
 ## Stack & Tooling (`@vision.md` §1)
 
-- ✅ Use only the documented stack: React + Vite + Tailwind, FastAPI + Poetry, OpenAI ChatGPT, eBird MCP helper.
-- ✅ Manage deps with pnpm (frontend) and Poetry (backend).
+- ✅ Use only the documented stack: React + Vite + Tailwind, FastAPI + uv, Anthropic Claude, eBird API.
+- ✅ Manage deps with npm (frontend) and uv (backend).
 - ❌ Don't introduce parallel toolchains or alternative package managers.
 
 ## Architecture Guardrails (`@vision.md` §3–4,6)
@@ -37,7 +37,7 @@
 
 If the virtual environment appears broken, reinitialize it:
 ```bash
-cd /mnt/nfs/users/jenya/birds && source .venv/bin/activate && (unset VIRTUAL_ENV && poetry -v install) && pre-commit install
+rm -rf .venv && uv sync && uv run pre-commit install
 ```
 
 ## Error Handling & Logging (`@vision.md` §6–7)
@@ -51,7 +51,7 @@ cd /mnt/nfs/users/jenya/birds && source .venv/bin/activate && (unset VIRTUAL_ENV
 - ✅ Run pre-commit hooks before every commit.
 - ✅ All tests must pass before committing or merging.
 - ✅ Test frontend builds locally: `cd frontend && npm run build`
-- ✅ Test backend type checking: `poetry run mypy services/backend/app --ignore-missing-imports`
+- ✅ Test backend type checking: `uv run mypy services/backend/app --ignore-missing-imports`
 - ✅ Write automated tests for each iteration (backend unit tests, integration tests)
 - ✅ Test new endpoints and components before considering iteration complete
 - ❌ **NEVER** skip pre-commit hooks (`--no-verify`).

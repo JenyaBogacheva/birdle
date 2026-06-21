@@ -35,12 +35,14 @@ Built in 6 iterations following MVP-first principles.
 
 ### Backend
 
+Dependencies are managed with [uv](https://docs.astral.sh/uv/) (Python 3.14, pinned in `.python-version` — uv installs it automatically).
+
 ```bash
-# Install dependencies
-poetry install
+# Install dependencies (creates .venv from uv.lock)
+uv sync
 
 # Run the API server
-poetry run uvicorn services.backend.app.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn services.backend.app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### Frontend
@@ -59,10 +61,10 @@ npm run dev
 
 ```bash
 # Install pre-commit hooks (run once)
-poetry run pre-commit install
+uv run pre-commit install
 
 # Manually run on all files
-poetry run pre-commit run --all-files
+uv run pre-commit run --all-files
 ```
 
 The pre-commit hooks will automatically run:
@@ -115,17 +117,17 @@ birdle/
 
 **Test Coverage:**
 ```bash
-$ poetry run pytest services/backend/tests/
-============================= 44 passed in 20s ==============================
+$ uv run pytest services/backend/tests/
+============================= 95 passed in 1s ==============================
 ```
 
 **Type Safety:**
 ```bash
-$ poetry run mypy services/backend/app --ignore-missing-imports
-Success: no issues found in 13 source files
+$ uv run mypy services/backend/app --ignore-missing-imports
+Success: no issues found in 19 source files
 ```
 
-- **44 passing tests** (unit + integration)
+- **95 passing tests** (unit + integration)
 - **Full type checking** (TypeScript + mypy)
 - **Structured logging** (latency tracking, token usage)
 - **Error handling** (retries, timeouts, fallbacks)
@@ -165,8 +167,8 @@ Response with species, images, reasoning
 - Tailwind CSS (rapid styling)
 
 **Backend:**
-- FastAPI (async Python, OpenAPI docs)
-- Poetry (dependency management)
+- FastAPI (async Python 3.14, OpenAPI docs)
+- uv (dependency management)
 - Pydantic (data validation)
 
 **AI & Data:**

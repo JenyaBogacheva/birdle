@@ -1,36 +1,38 @@
-[tool.poetry]
+[project]
 name = "bird-id-mvp"
 version = "0.1.0"
 description = "LLM-powered bird identification assistant"
-authors = ["Bird-ID Team"]
+authors = [{ name = "Bird-ID Team" }]
 readme = "README.md"
-packages = [{include = "services"}]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "anthropic>=0.52.0",
+    "tavily-python>=0.5.0",
+    "httpx>=0.27.0,<0.28.0",
+    "python-multipart>=0.0.12",
+    "langgraph>=1.2",
+    "langchain-anthropic>=1.3",
+    "langchain-core>=1.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-fastapi = "^0.115.0"
-uvicorn = {extras = ["standard"], version = "^0.32.0"}
-pydantic = "^2.9.0"
-pydantic-settings = "^2.6.0"
-anthropic = ">=0.52.0"
-tavily-python = ">=0.5.0"
-httpx = "^0.27.0"
-python-multipart = "^0.0.12"
-langgraph = "^1.2"
-langchain-anthropic = "^1.3"
-langchain-core = "^1.0"
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "black>=24.10.0",
+    "ruff>=0.7.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.4.0",
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.3.0"
-pytest-asyncio = "^0.24.0"
-black = "^24.10.0"
-ruff = "^0.7.0"
-mypy = "^1.13.0"
-pre-commit = "^4.4.0"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+# This is a deployable application, not a library — don't build/install the
+# project itself into the environment, just its dependencies.
+package = false
 
 [tool.black]
 line-length = 100
@@ -57,3 +59,6 @@ explicit_package_bases = true
 [tool.pytest.ini_options]
 testpaths = ["services/backend/tests"]
 asyncio_mode = "auto"
+# uv runs as a non-package project (tool.uv package = false), so the repo root
+# is not installed onto sys.path — add it so `import services...` resolves.
+pythonpath = ["."]
