@@ -31,6 +31,8 @@ class BirdState(TypedDict, total=False):
     # HITL bookkeeping
     ask_rounds: int
     gate_bounces: int  # times a terminal was bounced back by a failed guard
+    # Set by the runner on a follow-up turn; consumed by the follow_up node
+    follow_up_message: Optional[str]
     # Terminal payload (set by submit_id / inconclusive / guardrail bail)
     final: Optional[dict[str, Any]]
 

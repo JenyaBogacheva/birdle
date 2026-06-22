@@ -53,7 +53,8 @@ class TestIdentifyEndpoint:
         data = resp.json()
         assert data["top_species"]["common_name"] == "Northern Cardinal"
         assert data["top_species"]["image_url"] == "http://img/c.jpg"
-        assert "ebird.org/explore" in data["top_species"]["range_link"]
+        # With a species code we link to the eBird species page (range map).
+        assert data["top_species"]["range_link"] == "https://ebird.org/species/norcar"
 
     def test_identify_no_match(self, client):
         result = {

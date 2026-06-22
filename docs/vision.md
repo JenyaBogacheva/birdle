@@ -59,6 +59,10 @@ Architecture principles:
   the hard truths (bird check, presence-before-concluding, frequency-before-HIGH).
 - Turn-based with human-in-the-loop: the agent can pause (`interrupt()`) to ask a
   clarifying/disambiguation question and resume with the user's reply.
+- Follow-ups after a conclusion re-enter the graph at a `follow_up` node (which
+  appends the new message and routes back to `investigate`); the agent may refine
+  the identification or simply answer. Terminal nodes close their own tool call so
+  the transcript stays valid across turns.
 - In-memory only: LangGraph `InMemorySaver` keyed by `session_id` (30-min idle TTL),
   no database; a restart drops in-flight sessions and the client starts fresh.
 - Single process: eliminate cross-service coordination.

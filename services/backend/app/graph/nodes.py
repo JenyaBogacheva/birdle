@@ -227,6 +227,11 @@ async def ask_user(state: BirdState) -> dict[str, Any]:
     }
 
 
+def _close_terminal(call: dict[str, Any], note: str) -> ToolMessage:
+    """Close a terminal tool call so the transcript stays valid for a later turn."""
+    return ToolMessage(content=note, tool_call_id=call.get("id", "terminal"))
+
+
 async def submit_id(state: BirdState) -> dict[str, Any]:
     """Terminal: map submit_identification args into the final response payload."""
     call = _last_terminal_tool_call(state.get("messages", [])) or {}
@@ -237,7 +242,7 @@ async def submit_id(state: BirdState) -> dict[str, Any]:
         "alternate_species": args.get("alternate_species") or [],
         "clarification": args.get("clarification"),
     }
-    return {"final": final}
+    return {"final": final, "messages": [_close_terminal(call, "identification submitted")]}
 
 
 async def inconclusive(state: BirdState) -> dict[str, Any]:
@@ -251,4 +256,18 @@ async def inconclusive(state: BirdState) -> dict[str, Any]:
         "alternate_species": args.get("closest_guesses") or [],
         "clarification": args.get("what_would_help"),
     }
-    return {"final": final}
+    return {"final": final, "messages": [_close_terminal(call, "concluded inconclusive")]}
+
+
+async def follow_up(state: BirdState) -> dict[str, Any]:
+    """Re-entry for a follow-up turn on a concluded session: append the user's
+    new message and hand back to investigate (which may re-identify or answer).
+
+    Terminal nodes close their own tool call, so the transcript is already valid
+    here — we only add the (framed) human message and clear the prior verdict."""
+    message = state.get("follow_up_message") or ""
+    return {
+        "messages": [HumanMessage(content=prompts.FOLLOW_UP_PROMPT.format(message=message))],
+        "final": None,
+        "follow_up_message": None,
+    }

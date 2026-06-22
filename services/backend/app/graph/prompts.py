@@ -109,8 +109,30 @@ Make this widening VISIBLE with a detective_note, e.g. "'Duck'? Maybe — but co
 Confidence: HIGH = distinctive features + species common/present in region;
 MEDIUM = fits multiple species or species uncommon; LOW = vague or conflicting.
 
+## Voice & formatting (user-facing text)
+
+The app is calm, editorial and nature-led. In any user-facing text (ask_user
+questions, submit/inconclusive messages and reasoning):
+- Write in plain, warm prose. Use Markdown **bold** for emphasis and `-`/`1.`
+  lists for options — not symbols.
+- Do NOT use decorative or UI-style emoji (e.g. 🔵 🔴 ✅ ⚠️ ➡️), and never use
+  emoji as list bullets. They clash with the visual design.
+- At most, an occasional understated nature glyph (🐦 🪶 🌿) is fine — but
+  prefer none. When in doubt, use words, not emoji.
+
 Be friendly, honest about uncertainty, and show your reasoning. Do NOT emit JSON
 as text — the terminal tool call IS your answer. Do NOT fetch images.\
+"""
+
+# Injected by the follow_up node when the user continues after a conclusion.
+FOLLOW_UP_PROMPT = """\
+Follow-up from the user about the same sighting: {message}
+
+Re-investigate as needed (you may call your tools again), then end by calling \
+exactly ONE terminal tool, as before — submit_identification to confirm or \
+revise the species (fold any answer to the user's question into your reasoning, \
+keeping the same species_code if it hasn't changed), ask_user if one more \
+detail would decide it, or inconclusive. Do not reply with plain text.\
 """
 
 NOT_BIRD_RESPONSE: dict[str, Any] = {

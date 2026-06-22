@@ -16,22 +16,29 @@ React SPA → FastAPI POST /api/identify/stream → guardrail node (Haiku: is it
   → resolve_inputs (Haiku location→eBird region parse, eBird-validated; may ask via interrupt)
   → investigate (Claude Sonnet + extended thinking) ⇄ tools (LangGraph ToolNode)
        ├── get_regional_birds / get_species_frequency / get_regional_rarities
-       ├── lookup_family                       ← direct httpx → eBird / Macaulay
+       ├── lookup_family                       ← direct httpx → eBird
        └── web_search(query)                   ← Tavily API
   → confidence_gate (grounding guards) → { submit_id | ask_user | inconclusive }
   → SSE stream → (on ask_user) POST /api/identify/resume {session_id, user_message}
+                 (after a result)  POST /api/identify/continue {session_id, user_message}
+                                   → follow_up node → investigate (refine or answer)
 ```
 
 - Turn-based per session: an in-memory LangGraph `InMemorySaver` keyed by `session_id`
   (30-min idle TTL, no DB; a restart drops in-flight sessions and the client starts fresh).
 - Human-in-the-loop via `interrupt()`: the agent pauses to ask a clarifying or
   disambiguation question and resumes with the user's reply.
+- Follow-up turns: after a conclusion, `/api/identify/continue` re-enters the graph
+  at the `follow_up` node (appends the message, routes to `investigate`); the agent
+  refines the ID or answers. Terminal nodes (`submit_id`/`inconclusive`) close their
+  own tool call so the transcript stays valid across turns.
 - Mandatory grounding guards: regional presence checked before concluding;
   frequency checked before HIGH confidence.
 - The graph lives in `services/backend/app/graph/` (`state`, `prompts`, `tools`,
   `nodes`, `routing`, `build`, `runner`). `runner.py` adapts LangGraph's multi-mode
   `astream` into the SSE event protocol.
-- eBird/Macaulay access via direct httpx calls in `services/backend/app/helpers/ebird_client.py`
+- eBird access via direct httpx calls in `services/backend/app/helpers/ebird_client.py`;
+  species photos come from the public Wikimedia REST API (Macaulay's API was retired)
 - Web search via Tavily in `services/backend/app/helpers/web_search.py`
 - Settings loaded via Pydantic BaseSettings from `.env.local`
 - TypeScript interfaces and Pydantic schemas must stay aligned

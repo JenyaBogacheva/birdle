@@ -1,12 +1,14 @@
 """
 Direct eBird API client replacing the MCP server+client layer.
 
-Uses httpx.AsyncClient for eBird observations and Macaulay Library image lookups.
+Uses httpx.AsyncClient for eBird observations; species photos come from the
+public Wikimedia REST API (Macaulay's API was retired / is auth-gated).
 """
 
 import logging
 import time
 from typing import Any, Optional
+from urllib.parse import quote
 
 import httpx
 
@@ -15,7 +17,10 @@ from ..settings import settings
 logger = logging.getLogger(__name__)
 
 EBIRD_API_BASE = "https://api.ebird.org/v2"
-MACAULAY_API_BASE = "https://search.macaulaylibrary.org/api/v1"
+# Wikimedia REST page-summary endpoint — returns a lead image per page title.
+WIKIPEDIA_SUMMARY_BASE = "https://en.wikipedia.org/api/rest_v1/page/summary"
+# Wikimedia asks all clients to send a descriptive User-Agent.
+WIKIPEDIA_UA = "BirdleAI/1.0 (bird identification; https://github.com/birdle-ai)"
 TIMEOUT = 10.0
 
 FREQUENCY_FETCH_CAP = 400  # cap rows fetched per species; ">=cap" reads as "common"
@@ -56,6 +61,7 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
         fallback: dict[str, Any] = {
             "region": region,
             "days_searched": days,
+            "total_species": 0,
             "species_observed": [],
         }
 
@@ -84,11 +90,13 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
                         "species_code": code,
                     }
 
-            species = list(species_map.values())[:max_results]
+            all_species = list(species_map.values())
             result = {
                 "region": region,
                 "days_searched": days,
-                "species_observed": species,
+                # True distinct-species count; species_observed is capped below.
+                "total_species": len(all_species),
+                "species_observed": all_species[:max_results],
             }
             latency_ms = (time.time() - start_time) * 1000
             logger.info(
@@ -96,7 +104,7 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
                 extra={
                     "operation": "get_regional_birds",
                     "region": region,
-                    "species_count": len(species),
+                    "species_count": len(all_species),
                     "latency_ms": round(latency_ms, 2),
                     "status": "success",
                 },
@@ -427,56 +435,57 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
             )
             return None
 
-    async def get_species_image(self, species_code: str) -> Optional[dict[str, str]]:
+    async def get_species_image(self, query: str) -> Optional[dict[str, str]]:
         """
-        Fetch the top-rated photo for a species from Macaulay Library.
+        Fetch a species lead photo from the public Wikimedia REST API.
 
-        Returns None on any error — image is optional.
+        ``query`` should be a page title — the scientific name is most reliable
+        (e.g. "Anastomus oscitans"); a common name also works. Wikimedia follows
+        redirects to the canonical species page. Returns ``{image_url,
+        photographer}`` or None on any error / missing image — image is optional.
         """
-        if not species_code:
+        if not query or not query.strip():
             return None
 
         start_time = time.time()
 
         try:
-            params: dict[str, str | int] = {
-                "taxonCode": species_code,
-                "mediaType": "photo",
-                "sort": "rating_rank_desc",
-                "count": 1,
-            }
-
-            resp = await self._client.get(f"{MACAULAY_API_BASE}/search", params=params)
+            title = quote(query.strip().replace(" ", "_"), safe="")
+            resp = await self._client.get(
+                f"{WIKIPEDIA_SUMMARY_BASE}/{title}",
+                headers={"User-Agent": WIKIPEDIA_UA, "Accept": "application/json"},
+            )
             resp.raise_for_status()
             data = resp.json()
 
-            results_content = data.get("results", {}).get("content", [])
-            if not results_content:
+            # Use the thumbnail Wikimedia hands back verbatim — it only serves a
+            # fixed set of cached widths per file, so rewriting the width risks a
+            # 400. Fall back to the (larger) original image when no thumb exists.
+            image_url = (data.get("thumbnail") or {}).get("source") or (
+                data.get("originalimage") or {}
+            ).get("source")
+            if not image_url:
                 logger.info(
                     "No image found for species",
                     extra={
                         "operation": "get_species_image",
-                        "species_code": species_code,
+                        "query": query,
                         "status": "not_found",
                     },
                 )
                 return None
 
-            item = results_content[0]
             latency_ms = (time.time() - start_time) * 1000
             logger.info(
                 "Species image fetched",
                 extra={
                     "operation": "get_species_image",
-                    "species_code": species_code,
+                    "query": query,
                     "latency_ms": round(latency_ms, 2),
                     "status": "success",
                 },
             )
-            return {
-                "image_url": item.get("previewUrl", ""),
-                "photographer": item.get("userDisplayName", "Unknown"),
-            }
+            return {"image_url": image_url, "photographer": "Wikimedia Commons"}
 
         except Exception as e:
             latency_ms = (time.time() - start_time) * 1000
@@ -484,7 +493,7 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
                 f"Species image fetch failed: {e}",
                 extra={
                     "operation": "get_species_image",
-                    "species_code": species_code,
+                    "query": query,
                     "latency_ms": round(latency_ms, 2),
                     "status": "error",
                     "error_type": type(e).__name__,

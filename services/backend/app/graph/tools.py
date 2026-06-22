@@ -49,14 +49,13 @@ async def get_regional_birds(region: str, days: int = 14) -> dict[str, Any]:
         }
     )
     result = await ebird_client.get_regional_birds(region=region, days=days)
-    n = len(result.get("species_observed", [])) if isinstance(result, dict) else 0
-    _emit(
-        {
-            "type": "tool_result",
-            "tool": "get_regional_birds",
-            "summary": f"Found {n} species in {region}",
-        }
+    shown = len(result.get("species_observed", [])) if isinstance(result, dict) else 0
+    total = result.get("total_species", shown) if isinstance(result, dict) else 0
+    # Report the true distinct count; note when the list passed on was capped.
+    summary = f"{total} species recently in {region}" + (
+        f" (reviewing top {shown})" if total > shown else ""
     )
+    _emit({"type": "tool_result", "tool": "get_regional_birds", "summary": summary})
     return result
 
 

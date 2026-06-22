@@ -102,48 +102,56 @@ class TestGetSpeciesFrequency:
 
 
 class TestGetSpeciesImage:
-    async def test_success(self):
+    async def test_success_uses_thumbnail_verbatim(self):
         ebird = eBirdClient()
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "results": {
-                "content": [
-                    {
-                        "previewUrl": "https://img.example.com/bird.jpg",
-                        "userDisplayName": "Jane Doe",
-                    }
-                ]
-            }
+            "title": "Northern cardinal",
+            "thumbnail": {"source": "https://upload.wikimedia.org/a/b/file.jpg/330px-file.jpg"},
         }
         mock_response.raise_for_status = MagicMock()
         ebird._client.get = AsyncMock(return_value=mock_response)
 
-        result = await ebird.get_species_image("norcar")
+        result = await ebird.get_species_image("Cardinalis cardinalis")
 
-        assert result["image_url"] == "https://img.example.com/bird.jpg"
-        assert result["photographer"] == "Jane Doe"
+        # The thumbnail URL is used as-is (Wikimedia only serves fixed widths).
+        assert result["image_url"] == "https://upload.wikimedia.org/a/b/file.jpg/330px-file.jpg"
+        assert result["photographer"] == "Wikimedia Commons"
 
-    async def test_no_results(self):
+    async def test_falls_back_to_originalimage(self):
         ebird = eBirdClient()
         mock_response = MagicMock()
-        mock_response.json.return_value = {"results": {"content": []}}
+        mock_response.json.return_value = {
+            "originalimage": {"source": "https://upload.wikimedia.org/a/b/full.jpg"},
+        }
         mock_response.raise_for_status = MagicMock()
         ebird._client.get = AsyncMock(return_value=mock_response)
 
-        result = await ebird.get_species_image("norcar")
+        result = await ebird.get_species_image("Ardea cinerea")
 
-        assert result is None
+        assert result["image_url"] == "https://upload.wikimedia.org/a/b/full.jpg"
 
-    async def test_empty_code(self):
+    async def test_no_image(self):
         ebird = eBirdClient()
-        result = await ebird.get_species_image("")
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"title": "Some page", "extract": "no image"}
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        result = await ebird.get_species_image("Nonexistent species")
+
         assert result is None
+
+    async def test_empty_query(self):
+        ebird = eBirdClient()
+        assert await ebird.get_species_image("") is None
+        assert await ebird.get_species_image("   ") is None
 
     async def test_error_returns_none(self):
         ebird = eBirdClient()
         ebird._client.get = AsyncMock(side_effect=Exception("network error"))
 
-        result = await ebird.get_species_image("norcar")
+        result = await ebird.get_species_image("Cardinalis cardinalis")
 
         assert result is None
 

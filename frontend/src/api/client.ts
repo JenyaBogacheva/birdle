@@ -10,6 +10,21 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
+/**
+ * Coerce a FastAPI error `detail` into a readable string. `detail` may be a
+ * plain string, or (for 422 validation errors) an array of {loc, msg} objects.
+ */
+function formatErrorDetail(detail: unknown, fallback: string): string {
+  if (typeof detail === 'string' && detail) return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail
+      .map((d) => (d && typeof d === 'object' && 'msg' in d ? String((d as { msg: unknown }).msg) : ''))
+      .filter(Boolean);
+    if (msgs.length) return msgs.join('; ');
+  }
+  return fallback || 'API request failed';
+}
+
 export async function identifyBird(
   observation: ObservationInput
 ): Promise<RecommendationResponse> {
@@ -28,8 +43,7 @@ export async function identifyBird(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      const errorMessage = errorData.detail || response.statusText || 'API request failed';
-      throw new Error(errorMessage);
+      throw new Error(formatErrorDetail(errorData.detail, response.statusText));
     }
 
     return response.json();
@@ -140,4 +154,13 @@ export function resumeIdentificationStream(
   signal?: AbortSignal,
 ): Promise<void> {
   return streamSSE('/api/identify/resume', payload, onEvent, signal);
+}
+
+/** Follow-up turn after a result: another turn in the same session. */
+export function continueIdentificationStream(
+  payload: ResumeInput,
+  onEvent: (event: StreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return streamSSE('/api/identify/continue', payload, onEvent, signal);
 }
