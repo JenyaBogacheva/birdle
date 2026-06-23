@@ -1,208 +1,65 @@
 # Birdle AI
 
-**Full-stack AI application built from scratch in ~10 days** -- Natural language -> Claude Sonnet agent -> Regional eBird data + Tavily web search -> Ranked species with images
+Birdle identifies birds from a plain-language description. You say what you saw and where — *"a small red bird with a crest, in New York this morning"* — and an AI agent investigates real evidence (regional eBird data and the web) to work out what it most likely was. It shows its reasoning, asks a question when one detail would settle it, and keeps the conversation going so you can refine or ask more.
 
-**Live demo:** https://birdle-ai.vercel.app/ | **Key skills:** React, TypeScript, Python, FastAPI, Anthropic Claude, eBird API, Tavily, Testing, DevOps
+**Live:** https://birdle-ai.vercel.app/
 
----
+## How it works
 
-## Live Demo
+Birdle treats identification as an investigation, not a lookup. A LangGraph agent (Claude Sonnet with extended thinking) forms hypotheses from your description, then grounds them against live data before committing:
 
-**Try it here:** https://birdle-ai.vercel.app/
+- A Haiku guardrail bows out if it isn't a bird question; your location is parsed into an eBird region (and the agent asks if it's ambiguous).
+- Claude loops between thinking and tools — what's present in your area, how common each candidate is, what rarities have turned up, and the wider web for unusual cases.
+- Grounding guards enforce a careful birder's rules: regional presence is checked before concluding, and abundance before any high-confidence claim.
+- It concludes by submitting a ranked ID, asking one targeted question, or saying honestly that it can't be sure — and after a result you can ask follow-ups in the same session.
 
-**Quick test:** "I saw a small red bird with a crest in New York"
-
-**Backend API:** https://bird-id-api.onrender.com
-
-See `DEMO.md` for more test cases and what to expect.
-
----
-
-## What This Is
-
-An MVP demonstrating agentic bird identification that:
-- Takes natural language descriptions
-- Uses Claude Sonnet with extended thinking for reasoning and confidence assessment
-- Queries live eBird regional data via direct API calls
-- Searches the web via Tavily for unusual species or behavioral details
-- Returns ranked species with high-quality images
-- Works globally (all continents)
-- Handles uncertainty gracefully with clarification requests
-
-Built in 6 iterations following MVP-first principles.
-
-## Setup
-
-### Backend
-
-Dependencies are managed with [uv](https://docs.astral.sh/uv/) (Python 3.14, pinned in `.python-version` — uv installs it automatically).
-
-```bash
-# Install dependencies (creates .venv from uv.lock)
-uv sync
-
-# Run the API server
-uv run uvicorn services.backend.app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-### Frontend
-
-```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Run dev server
-npm run dev
-```
-
-### Pre-commit Hooks
-
-```bash
-# Install pre-commit hooks (run once)
-uv run pre-commit install
-
-# Manually run on all files
-uv run pre-commit run --all-files
-```
-
-The pre-commit hooks will automatically run:
-- Trailing whitespace removal
-- End of file fixer
-- YAML validation
-- Ruff linting & formatting (Python)
-- MyPy type checking (Python)
-- ESLint (TypeScript/React)
-
-## Environment Variables
-
-Copy `.env.example` to `.env.local` and configure:
-
-Required keys:
-- `ANTHROPIC_API_KEY` -- Anthropic API key for Claude Sonnet
-- `TAVILY_API_KEY` -- Tavily API key for web search
-- `EBIRD_TOKEN` -- eBird API token for regional bird data
-
-Frontend: `frontend/.env.example` -> `frontend/.env.local`
-
-## Development
-
-See `docs/workflow.md` for the iteration-based development process.
-
-## Project Structure
-
-```
-birdle/
-├── frontend/              # React + Vite SPA
-│   ├── src/
-│   │   ├── components/   # UI components
-│   │   ├── pages/        # Page components
-│   │   ├── api/          # API client
-│   │   └── types/        # TypeScript types
-│   └── package.json
-├── services/
-│   └── backend/
-│       └── app/
-│           ├── main.py   # FastAPI entry
-│           ├── routes/   # API endpoints
-│           ├── schemas/  # Pydantic models
-│           └── helpers/  # Bird agent, eBird client, web search
-├── configs/              # Configuration templates
-├── docs/                 # Documentation
-└── pyproject.toml        # Python dependencies
-```
-
-## Quality Metrics
-
-**Test Coverage:**
-```bash
-$ uv run pytest services/backend/tests/
-============================= 95 passed in 1s ==============================
-```
-
-**Type Safety:**
-```bash
-$ uv run mypy services/backend/app --ignore-missing-imports
-Success: no issues found in 19 source files
-```
-
-- **95 passing tests** (unit + integration)
-- **Full type checking** (TypeScript + mypy)
-- **Structured logging** (latency tracking, token usage)
-- **Error handling** (retries, timeouts, fallbacks)
-- **Content moderation** (Claude built-in safety)
-- **Global coverage** (eBird regions worldwide)
-- **Pre-commit hooks** (Ruff, Black, ESLint enforced)
+Everything streams to the UI live over SSE — the thinking, each tool call, and the final card with photos.
 
 ## Architecture
 
 ```
-User Input (React SPA)
-    |
-FastAPI Backend
-    |
-    --> Bird ID Agent (Claude Sonnet + extended thinking)
-         |
-         |-- get_regional_birds  (direct eBird API v2)
-         |-- get_species_image   (Macaulay Library)
-         |-- web_search          (Tavily API)
-    |
-Response with species, images, reasoning
+React SPA  ──POST /api/identify/stream (SSE)──►  FastAPI
+                                                    │
+                                          LangGraph turn-based graph
+                                                    │
+   guardrail (Haiku: is it a bird?)
+     → resolve_inputs (Haiku: location → eBird region; may ask via interrupt)
+     → investigate (Claude Sonnet + extended thinking)  ⇄  tools
+          ├── get_regional_birds / get_species_frequency / get_regional_rarities
+          ├── lookup_family            ← direct httpx → eBird API v2
+          └── web_search(query)        ← Tavily API
+     → confidence_gate (grounding guards)
+          → { submit_id | ask_user | inconclusive }
+                                                    │
+   SSE stream → species + photos (Wikimedia) + reasoning
+   follow-ups:  /api/identify/resume (answer a question) · /continue (refine after a result)
 ```
 
-**Key principles:**
-- Agentic design (LLM decides what data to fetch)
-- Stateless (scales horizontally)
-- Linear request flow (no background workers)
-- In-memory only (no database for MVP)
-- One retry policy (transient errors)
-- Graceful degradation (partial results on failures)
+- **Turn-based sessions** — LangGraph `InMemorySaver` keyed by `session_id`, 30-min idle TTL, no database; a restart drops in-flight sessions and the client starts fresh.
+- **Human-in-the-loop** — the agent pauses via `interrupt()` to ask, and resumes with your reply.
+- **Resilient** — one-retry on transient errors, timeouts, and graceful degradation when eBird or Tavily is down.
 
-## Tech Stack
+The graph lives in `services/backend/app/graph/` (`state`, `prompts`, `tools`, `nodes`, `routing`, `build`, `runner`); `runner.py` adapts LangGraph's `astream` into the SSE protocol.
 
-**Frontend:**
-- React 18 + Vite (fast dev + build)
-- TypeScript (type safety)
-- Tailwind CSS (rapid styling)
+## Tech stack
 
-**Backend:**
-- FastAPI (async Python 3.14, OpenAPI docs)
-- uv (dependency management)
-- Pydantic (data validation)
+- **Frontend** — React 18 + Vite, TypeScript, Tailwind, SSE streaming.
+- **Backend** — FastAPI (async, Python 3.14), LangGraph, Pydantic v2, uv.
+- **AI & data** — Anthropic Claude (Sonnet + Haiku), eBird API v2, Tavily web search, Wikimedia photos.
 
-**AI & Data:**
-- Anthropic Claude Sonnet (agentic reasoning with extended thinking)
-- Tavily Search API (web search for LLM agents)
-- eBird API v2 (Cornell Lab, real-time observations)
-- Macaulay Library (Cornell Lab, species images)
+## Setup
 
-**Why these choices:**
-- Familiar stack -> fast development
-- Minimal abstractions -> easy to understand
-- Free/cheap APIs -> low-cost MVP
-- Standard protocols -> maintainable
+```bash
+# Backend — uv installs Python 3.14 automatically
+uv sync
+uv run uvicorn services.backend.app.main:app --reload --port 8000
 
-## Deployment
+# Frontend
+cd frontend && npm install && npm run dev   # http://localhost:5173
+```
 
-See `docs/deployment-guide.md` for step-by-step instructions.
+Copy `.env.example` → `.env.local` and set `ANTHROPIC_API_KEY`, `EBIRD_TOKEN`, `TAVILY_API_KEY` (frontend: `frontend/.env.example` → `frontend/.env.local`).
 
-**Quick summary:**
-1. Deploy backend to Render (15 min)
-2. Deploy frontend to Vercel (10 min)
-3. Test with demo cases (10 min)
+## Development
 
-Total: ~45 minutes to go live on free tiers.
-
-## Current Status
-
-| Iteration | Feature | Status |
-|-----------|---------|--------|
-| 1 | End-to-end stub | Complete |
-| 2 | eBird + OpenAI integration | Complete |
-| 3 | Multi-species + images | Complete |
-| 4 | Resilience + observability | Complete |
-| 5 | Retro Gen Z UI rebrand | Complete |
-| 6 | Agentic architecture (Claude + Tavily) | Complete |
-
-**Ready for:** Production deployment and user testing
+`docs/vision.md` is the authoritative blueprint; `docs/workflow.md` and `docs/conventions.md` cover the process and conventions. Pre-commit hooks (`uv run pre-commit install`) and CI run Ruff, Black, MyPy, ESLint, and the test suites. Deployment: backend on Render, frontend on Vercel — see `docs/deployment-guide.md`.
