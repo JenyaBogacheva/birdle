@@ -45,6 +45,7 @@ export interface BirdleSession {
   start: () => void;
   answer: (message: string) => void;
   followUp: (message: string) => void;
+  confirm: () => void;
   reset: () => void;
   retry: () => void;
 }
@@ -62,9 +63,9 @@ export function useBirdleSession(): BirdleSession {
   const lastObservationRef = useRef<ObservationInput | null>(null);
   const thinkingIdRef = useRef<number | null>(null);
   const gotTerminalRef = useRef(false);
-  // The species currently identified, so a follow-up that doesn't change it
-  // renders as a conversational answer rather than re-showing the full card.
-  const lastSpeciesRef = useRef<string | null>(null);
+  // Set when the user taps "This is my bird" — locks subsequent follow-ups to
+  // conversational answers so the card is never re-shown.
+  const confirmedRef = useRef(false);
 
   const result = feed.reduce<ResultCardData | null>(
     (acc, i) => (i.kind === 'result' ? i.data : acc),
@@ -128,23 +129,38 @@ export function useBirdleSession(): BirdleSession {
         case 'result': {
           gotTerminalRef.current = true;
           const card = toResultCardData(event.data);
-          if (card) {
-            // Same species as before → a conversational answer, not a fresh
-            // card. A changed species → a new result card.
-            if (lastSpeciesRef.current && lastSpeciesRef.current === card.sci) {
-              finishThinking({ id: uid(), kind: 'answer', text: card.summary });
-            } else {
-              lastSpeciesRef.current = card.sci;
-              finishThinking({ id: uid(), kind: 'result', data: card });
+          const tId = thinkingIdRef.current;
+          thinkingIdRef.current = null;
+          setFeed((f) => {
+            const next: FeedItem[] = f.map((item) =>
+              item.id === tId && item.kind === 'thinking' ? { ...item, active: false } : item,
+            );
+            if (!card) {
+              next.push({
+                id: uid(),
+                kind: 'inconclusive',
+                title: 'Not enough to go on — yet',
+                body: event.data.clarification || event.data.message,
+              });
+              return next;
             }
-          } else {
-            finishThinking({
-              id: uid(),
-              kind: 'inconclusive',
-              title: 'Not enough to go on — yet',
-              body: event.data.clarification || event.data.message,
-            });
-          }
+            // Decide from the feed itself (robust): if the species matches the
+            // most recent result — or the user already confirmed it — answer
+            // conversationally instead of re-showing the card.
+            const norm = (s: string) => s.trim().toLowerCase();
+            let prevSci: string | undefined;
+            for (let i = f.length - 1; i >= 0; i--) {
+              const it = f[i];
+              if (it.kind === 'result') { prevSci = it.data.sci; break; }
+            }
+            const sameSpecies = !!prevSci && norm(prevSci) === norm(card.sci);
+            if (confirmedRef.current || sameSpecies) {
+              next.push({ id: uid(), kind: 'answer', text: card.summary });
+            } else {
+              next.push({ id: uid(), kind: 'result', data: card });
+            }
+            return next;
+          });
           break;
         }
         case 'error':
@@ -183,7 +199,7 @@ export function useBirdleSession(): BirdleSession {
     };
     lastObservationRef.current = observation;
     sessionIdRef.current = null;
-    lastSpeciesRef.current = null;
+    confirmedRef.current = false;
 
     const { controller, thinkingId } = beginTurn(description);
     setPhase('conversation');
@@ -308,10 +324,16 @@ export function useBirdleSession(): BirdleSession {
     abortRef.current?.abort();
     sessionIdRef.current = null;
     thinkingIdRef.current = null;
-    lastSpeciesRef.current = null;
+    confirmedRef.current = false;
     setIsLoading(false);
     setPhase('compose');
     setFeed([]);
+  }, []);
+
+  // The user accepted the identification — lock follow-ups to conversational
+  // answers (don't re-show the card).
+  const confirm = useCallback(() => {
+    confirmedRef.current = true;
   }, []);
 
   // The form fields still hold the last submission, so re-running start() is
@@ -332,6 +354,6 @@ export function useBirdleSession(): BirdleSession {
     phase, desc, loc, time, feed, isLoading, result, vars,
     canStart: !!desc.trim() && !!loc.trim(),
     canFollowUp,
-    setDesc, setLoc, setTime, start, answer, followUp, reset, retry,
+    setDesc, setLoc, setTime, start, answer, followUp, confirm, reset, retry,
   };
 }

@@ -96,7 +96,7 @@ export function ResultActions({ s, desktop }: { s: BirdleSession; desktop?: bool
         </div>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 11 }}>
-          {isResult && <Chip tone="accent" onClick={() => setConfirmed(true)}>This is my bird</Chip>}
+          {isResult && <Chip tone="accent" onClick={() => { s.confirm(); setConfirmed(true); }}>This is my bird</Chip>}
           <Chip onClick={() => { setMode('refine'); focusInput(); }}>Not quite</Chip>
           {isResult && <Chip onClick={() => { setMode('chat'); focusInput(); }}>Ask about it</Chip>}
           <Chip onClick={s.reset}>Identify another</Chip>
