@@ -44,16 +44,19 @@ async def _build_species_info(data: dict) -> SpeciesInfo:
             image_credit = image_data.get("photographer")
 
     # The eBird species page (with the range map) lives at /species/<code>;
-    # fall back to a name search only when the agent didn't supply a code.
+    # fall back to a search when the agent didn't supply a code — keyed on the
+    # scientific name (precise) rather than the common name (collision-prone,
+    # e.g. "Robin" US vs UK).
     range_link = (
         f"https://ebird.org/species/{species_code}"
         if species_code
-        else f"https://ebird.org/explore?q={quote_plus(common_name)}"
+        else f"https://ebird.org/explore?q={quote_plus(scientific_name or common_name)}"
     )
 
     return SpeciesInfo(
         scientific_name=data.get("scientific_name", "Unknown"),
         common_name=common_name,
+        species_code=species_code or None,
         range_link=range_link,
         confidence=data.get("confidence"),
         reasoning=data.get("reasoning"),

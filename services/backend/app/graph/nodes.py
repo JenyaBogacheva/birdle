@@ -17,7 +17,7 @@ from ..helpers.ebird_client import ebird_client
 from ..settings import settings
 from . import prompts
 from .state import BirdState
-from .tools import ALL_TOOLS
+from .tools import ALL_TOOLS, TERMINAL_TOOL_NAMES
 
 logger = logging.getLogger(__name__)
 
@@ -227,14 +227,39 @@ async def ask_user(state: BirdState) -> dict[str, Any]:
     }
 
 
-def _close_terminal(call: dict[str, Any], note: str) -> ToolMessage:
-    """Close a terminal tool call so the transcript stays valid for a later turn."""
-    return ToolMessage(content=note, tool_call_id=call.get("id", "terminal"))
+def _close_pending_tool_calls(messages: list[Any], verdict_note: str) -> list[ToolMessage]:
+    """Close every open tool call on the last AIMessage so the transcript stays
+    valid for a later follow-up turn.
+
+    Returns ``[]`` when the agent concluded with plain prose (no tool call to
+    close) — emitting a ToolMessage with no matching ``tool_use`` block would
+    corrupt the transcript and make the next ``/continue`` turn 400. A terminal
+    tool call gets ``verdict_note``; a non-terminal call that never ran (e.g. a
+    data tool reached after the data budget was spent) is closed honestly rather
+    than fabricating a result for it.
+    """
+    if not messages:
+        return []
+    last = messages[-1]
+    calls: list[dict[str, Any]] = getattr(last, "tool_calls", None) or []
+    closed: list[ToolMessage] = []
+    for call in calls:
+        call_id = call.get("id")
+        if not call_id:
+            continue
+        note = (
+            verdict_note
+            if call.get("name") in TERMINAL_TOOL_NAMES
+            else "Investigation concluded before this tool ran."
+        )
+        closed.append(ToolMessage(content=note, tool_call_id=call_id))
+    return closed
 
 
 async def submit_id(state: BirdState) -> dict[str, Any]:
     """Terminal: map submit_identification args into the final response payload."""
-    call = _last_terminal_tool_call(state.get("messages", [])) or {}
+    messages = state.get("messages", [])
+    call = _last_terminal_tool_call(messages) or {}
     args = call.get("args", {})
     final: dict[str, Any] = {
         "message": args.get("message", ""),
@@ -242,12 +267,23 @@ async def submit_id(state: BirdState) -> dict[str, Any]:
         "alternate_species": args.get("alternate_species") or [],
         "clarification": args.get("clarification"),
     }
-    return {"final": final, "messages": [_close_terminal(call, "identification submitted")]}
+    out: dict[str, Any] = {
+        "final": final,
+        "messages": _close_pending_tool_calls(messages, "identification submitted"),
+    }
+    # Remember the grounded species so a same-species follow-up can skip a
+    # redundant presence check (only update when a code is present, so we keep
+    # the last *coded* conclusion across a code-less or inconclusive turn).
+    code = (args.get("top_species") or {}).get("species_code")
+    if code:
+        out["last_species_code"] = code
+    return out
 
 
 async def inconclusive(state: BirdState) -> dict[str, Any]:
     """Terminal: honest "can't identify" — closest guesses + what would help."""
-    call = _last_terminal_tool_call(state.get("messages", [])) or {}
+    messages = state.get("messages", [])
+    call = _last_terminal_tool_call(messages) or {}
     args = call.get("args", {})
     final: dict[str, Any] = {
         "message": args.get("message", prompts.FALLBACK_RESPONSE["message"]),
@@ -256,7 +292,10 @@ async def inconclusive(state: BirdState) -> dict[str, Any]:
         "alternate_species": args.get("closest_guesses") or [],
         "clarification": args.get("what_would_help"),
     }
-    return {"final": final, "messages": [_close_terminal(call, "concluded inconclusive")]}
+    return {
+        "final": final,
+        "messages": _close_pending_tool_calls(messages, "concluded inconclusive"),
+    }
 
 
 async def follow_up(state: BirdState) -> dict[str, Any]:

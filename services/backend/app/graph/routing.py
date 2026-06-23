@@ -17,12 +17,18 @@ from the investigate-bounce path in build.py).
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Optional
 
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from .prompts import MAX_ASK_ROUNDS, MAX_DATA_TOOL_CALLS, MAX_GATE_BOUNCES
+from .prompts import FOLLOW_UP_PROMPT, MAX_ASK_ROUNDS, MAX_DATA_TOOL_CALLS, MAX_GATE_BOUNCES
 from .tools import DATA_TOOL_NAMES, TRACE_TOOL_NAMES
+
+# Stable prefix of the message the follow_up node injects — marks the boundary
+# of a new follow-up turn so grounding guards re-verify per turn (see
+# _current_turn_messages).
+_FOLLOW_UP_MARKER = FOLLOW_UP_PROMPT.split("{message}")[0]
 
 # Re-export for tests / build.py
 __all__ = ["route_after_investigate", "MAX_DATA_TOOL_CALLS", "guard_feedback_message"]
@@ -39,6 +45,26 @@ def _data_tool_calls_so_far(messages: list[Any]) -> int:
 
 def _called_tool(messages: list[Any], name: str) -> bool:
     return any(isinstance(m, ToolMessage) and getattr(m, "name", None) == name for m in messages)
+
+
+def _current_turn_messages(messages: list[Any]) -> list[Any]:
+    """Messages belonging to the active turn: everything after the most recent
+    follow-up re-entry.
+
+    The presence guard scans for a grounding tool call; on a follow-up turn the
+    agent may propose a *different* species, so evidence gathered for an earlier
+    turn must not satisfy the guard. On turn 1 (no follow-up marker yet) this
+    returns the whole history.
+    """
+    for i in range(len(messages) - 1, -1, -1):
+        m = messages[i]
+        if (
+            isinstance(m, HumanMessage)
+            and isinstance(m.content, str)
+            and m.content.startswith(_FOLLOW_UP_MARKER)
+        ):
+            return messages[i:]
+    return messages
 
 
 def _frequency_checked_for(messages: list[Any], species_code: str) -> bool:
@@ -60,6 +86,41 @@ def _last_tool_call(messages: list[Any]) -> Optional[dict[str, Any]]:
     last = messages[-1]
     calls = getattr(last, "tool_calls", None) if isinstance(last, AIMessage) else None
     return calls[0] if calls else None
+
+
+def failed_guard(state: Mapping[str, Any]) -> Optional[str]:
+    """Which grounding guard blocks the current submit_identification, if any.
+
+    Returns "presence" | "frequency" | None. Shared by route_after_investigate
+    and build.gate_feedback so the bounce decision and the corrective message
+    never drift.
+
+    Presence is satisfied by a grounding call *this turn* OR by the submitted
+    species matching the last grounded conclusion (re-confirming the same bird
+    within a session needs no fresh regional check — presence doesn't change in
+    a 30-minute window). Frequency (for HIGH confidence) is species-scoped over
+    the whole history for the same reason.
+    """
+    messages = state.get("messages", [])
+    call = _last_tool_call(messages)
+    if not call or call.get("name") != "submit_identification":
+        return None
+
+    top = call.get("args", {}).get("top_species") or {}
+    code = top.get("species_code", "")
+
+    turn_messages = _current_turn_messages(messages)
+    grounded_this_turn = _called_tool(turn_messages, "get_regional_birds") or _called_tool(
+        turn_messages, "get_historic_birds"
+    )
+    already_grounded = bool(code) and code == state.get("last_species_code")
+    if not (grounded_this_turn or already_grounded):
+        return "presence"
+
+    if top.get("confidence") == "high" and (not code or not _frequency_checked_for(messages, code)):
+        return "frequency"
+
+    return None
 
 
 def guard_feedback_message(reason: str) -> str:
@@ -105,22 +166,11 @@ def route_after_investigate(state: dict[str, Any]) -> str:
         return "ask_user"
 
     if name == "submit_identification":
-        args = call.get("args", {})
         # A failed guard normally bounces back to investigate (via gate_feedback),
         # but after MAX_GATE_BOUNCES we stop looping and conclude honestly.
-        bounced_out = state.get("gate_bounces", 0) >= MAX_GATE_BOUNCES
-        # Guard 1: presence before concluding.
-        if not (
-            _called_tool(messages, "get_regional_birds")
-            or _called_tool(messages, "get_historic_birds")
-        ):
+        if failed_guard(state):
+            bounced_out = state.get("gate_bounces", 0) >= MAX_GATE_BOUNCES
             return "inconclusive" if bounced_out else "investigate"
-        # Guard 2: frequency before HIGH confidence.
-        top = args.get("top_species") or {}
-        if top.get("confidence") == "high":
-            code = top.get("species_code", "")
-            if not code or not _frequency_checked_for(messages, code):
-                return "inconclusive" if bounced_out else "investigate"
         return "submit_id"
 
     # Unknown tool name -> conclude honestly rather than loop.

@@ -87,6 +87,15 @@ export function ResultCard({ data, noBanner }: ResultCardProps) {
 
         <RichText text={data.summary} style={{ fontSize: 14.5, lineHeight: 1.55 }} />
 
+        {data.clarification && (
+          <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start', padding: '11px 13px', borderRadius: 11,
+            background: 'color-mix(in oklch, var(--accent) 9%, var(--input-bg))',
+            border: '1px solid var(--hairline-strong)' }}>
+            <Icon name="info" size={16} color="var(--accent-strong)" style={{ flex: 'none', marginTop: 1 }} />
+            <RichText text={data.clarification} style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink-soft)' }} />
+          </div>
+        )}
+
         {data.imageCredit && showPhoto && !noBanner && (
           <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10.5, letterSpacing: '0.04em', color: 'var(--ink-faint)', marginTop: -8 }}>
             Photo · {data.imageCredit}

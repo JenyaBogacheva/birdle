@@ -11,7 +11,10 @@ export function useMediaQuery(query: string): boolean {
   useEffect(() => {
     if (typeof window === 'undefined' || !('matchMedia' in window)) return;
     const mql = window.matchMedia(query);
-    const onChange = () => setMatches(mql.matches);
+    // Re-sync only when the value actually differs (covers a changed `query`);
+    // the useState initializer already matched on first mount, so an unchanged
+    // value bails the re-render rather than forcing a redundant one.
+    const onChange = () => setMatches((prev) => (prev === mql.matches ? prev : mql.matches));
     onChange();
     mql.addEventListener('change', onChange);
     return () => mql.removeEventListener('change', onChange);

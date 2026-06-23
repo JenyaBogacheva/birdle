@@ -44,6 +44,10 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
         self._timeout = httpx.Timeout(TIMEOUT)
         self._client = httpx.AsyncClient(timeout=self._timeout)
         self._family_cache: dict[str, dict[str, Any]] = {}
+        # Photo lookups repeat across turns (same-species follow-ups, recurring
+        # alternates); cache by normalized query. ``None`` is cached too, to
+        # avoid re-hitting Wikimedia for a title that has no image.
+        self._image_cache: dict[str, Optional[dict[str, str]]] = {}
 
     async def close(self) -> None:
         """Close the shared HTTP client."""
@@ -447,6 +451,10 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
         if not query or not query.strip():
             return None
 
+        cache_key = query.strip().lower()
+        if cache_key in self._image_cache:
+            return self._image_cache[cache_key]
+
         start_time = time.time()
 
         try:
@@ -473,6 +481,7 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
                         "status": "not_found",
                     },
                 )
+                self._image_cache[cache_key] = None
                 return None
 
             latency_ms = (time.time() - start_time) * 1000
@@ -485,7 +494,9 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
                     "status": "success",
                 },
             )
-            return {"image_url": image_url, "photographer": "Wikimedia Commons"}
+            result = {"image_url": image_url, "photographer": "Wikimedia Commons"}
+            self._image_cache[cache_key] = result
+            return result
 
         except Exception as e:
             latency_ms = (time.time() - start_time) * 1000

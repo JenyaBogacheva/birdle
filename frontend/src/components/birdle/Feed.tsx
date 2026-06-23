@@ -13,13 +13,22 @@ function ClarifyBlock({
   item, onAnswer, desktop,
 }: { item: ClarifyItem; onAnswer: (msg: string) => void; desktop?: boolean }) {
   const [text, setText] = useState('');
-  const answered = item.answered !== null;
+  // Local latch: ignore further taps the instant one fires, before `answered`
+  // round-trips through the resume turn (prevents a double-tap double-submit).
+  const [submitted, setSubmitted] = useState(false);
+  const answered = item.answered !== null || submitted;
+
+  const send = (msg: string) => {
+    if (answered) return;
+    setSubmitted(true);
+    onAnswer(msg);
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     const t = text.trim();
     if (!t) return;
-    onAnswer(t);
+    send(t);
     setText('');
   };
 
@@ -30,7 +39,7 @@ function ClarifyBlock({
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: desktop ? 9 : 8, marginBottom: answered ? 0 : 10 }}>
           {item.options.map((c, i) => (
             <Chip key={i} tone="accent" active={item.answered === c}
-              onClick={() => !answered && onAnswer(c)}>{c}</Chip>
+              onClick={() => send(c)}>{c}</Chip>
           ))}
         </div>
       )}
@@ -96,7 +105,7 @@ export function ResultActions({ s, desktop }: { s: BirdleSession; desktop?: bool
         </div>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 11 }}>
-          {isResult && <Chip tone="accent" onClick={() => { s.confirm(); setConfirmed(true); }}>This is my bird</Chip>}
+          {isResult && <Chip tone="accent" onClick={() => setConfirmed(true)}>This is my bird</Chip>}
           <Chip onClick={() => { setMode('refine'); focusInput(); }}>Not quite</Chip>
           {isResult && <Chip onClick={() => { setMode('chat'); focusInput(); }}>Ask about it</Chip>}
           <Chip onClick={s.reset}>Identify another</Chip>

@@ -139,7 +139,12 @@ def detective_note(message: str) -> str:
 
 @tool
 def update_candidates(candidates: list[dict[str, Any]]) -> str:
-    """Update the shortlist of candidate species (considering / eliminated)."""
+    """Update the shortlist of candidate species (considering / eliminated).
+
+    Each candidate is a dict with: "name" (the common name — REQUIRED; it's what
+    the UI uses to fetch the thumbnail), "species_code" (eBird code when known),
+    "status" ("considering" | "eliminated"), and "reason" (brief why / why-not).
+    """
     _emit({"type": "candidates", "data": candidates})
     return "updated"
 

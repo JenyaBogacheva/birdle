@@ -34,17 +34,9 @@ def gate_feedback(state: BirdState) -> dict[str, Any]:
     messages = state.get("messages", [])
     call = routing._last_tool_call(messages) or {}
     call_id = call.get("id", "guard")
-    # Recompute which guard failed to phrase the feedback.
-    args = call.get("args", {})
-    if not (
-        routing._called_tool(messages, "get_regional_birds")
-        or routing._called_tool(messages, "get_historic_birds")
-    ):
-        reason = "presence"
-    elif (args.get("top_species") or {}).get("confidence") == "high":
-        reason = "frequency"
-    else:
-        reason = "presence"
+    # Reuse the router's own verdict so the corrective message names the guard
+    # that actually failed (e.g. presence on a species-changing follow-up).
+    reason = routing.failed_guard(state) or "presence"
     return {
         "messages": [
             ToolMessage(content=routing.guard_feedback_message(reason), tool_call_id=call_id)

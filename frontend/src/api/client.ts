@@ -49,7 +49,7 @@ export async function identifyBird(
     return response.json();
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error('Request timed out after 45 seconds. Please try again.');
+      throw new Error('Request timed out after 95 seconds. Please try again.');
     }
     if (error instanceof TypeError && error.message.includes('fetch')) {
       throw new Error('Cannot connect to server. Please ensure the backend is running at ' + API_BASE_URL);
@@ -83,11 +83,17 @@ async function consumeSSEStream(
     buffer = parts.pop() || '';
     for (const part of parts) {
       const line = part.trim();
-      if (line.startsWith('data: ')) {
-        const event = JSON.parse(line.slice(6)) as StreamEvent;
-        onEvent(event);
-        if (event.type === 'done') receivedDone = true;
+      if (!line.startsWith('data: ')) continue; // skip comments / keepalives
+      let event: StreamEvent;
+      try {
+        event = JSON.parse(line.slice(6)) as StreamEvent;
+      } catch {
+        // Malformed or partial frame — skip it rather than aborting the whole
+        // stream (a parse throw here would strand the UI mid-turn).
+        continue;
       }
+      onEvent(event);
+      if (event.type === 'done') receivedDone = true;
     }
   }
 

@@ -198,3 +198,28 @@ class TestTerminalNodes:
         assert out["final"]["top_species"] is None
         assert "what_would_help" not in out["final"]  # folded into clarification/message
         assert "tail" in (out["final"]["clarification"] or "").lower()
+
+    async def test_inconclusive_from_plain_prose_emits_no_tool_message(self):
+        # Agent stopped with plain prose (no tool call). Closing a tool call that
+        # doesn't exist would orphan a ToolMessage and 400 the next /continue turn.
+        ai = AIMessage(content="I'm honestly not sure what this was.")
+        out = await nodes.inconclusive({"messages": [ai]})
+        assert out["messages"] == []  # nothing to close — no orphan
+        assert out["final"]["top_species"] is None
+
+    async def test_terminal_close_matches_the_open_tool_call_id(self):
+        ai = _ai_with_tool_call("inconclusive", {"message": "no"}, call_id="abc123")
+        out = await nodes.inconclusive({"messages": [ai]})
+        assert len(out["messages"]) == 1
+        assert out["messages"][0].tool_call_id == "abc123"
+
+    async def test_inconclusive_via_data_budget_does_not_fabricate_a_data_result(self):
+        # Reached with a pending DATA tool call (budget spent): the call must be
+        # closed to keep the transcript valid, but NOT with a fake data result.
+        ai = _ai_with_tool_call(
+            "get_species_frequency", {"region": "US-NY", "species_code": "norcar"}, call_id="d1"
+        )
+        out = await nodes.inconclusive({"messages": [ai]})
+        assert len(out["messages"]) == 1
+        assert out["messages"][0].tool_call_id == "d1"
+        assert out["messages"][0].content != "concluded inconclusive"
