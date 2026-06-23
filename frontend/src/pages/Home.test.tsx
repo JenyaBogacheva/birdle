@@ -20,16 +20,16 @@ async function fillAndSubmit() {
     screen.getByLabelText(/what did you see/i),
     'small red bird with a crest',
   );
-  await userEvent.type(screen.getByLabelText(/where are you/i), 'New York');
-  await userEvent.click(screen.getByRole('button', { name: /let's go/i }));
+  await userEvent.type(screen.getByLabelText(/^where$/i), 'New York');
+  await userEvent.click(screen.getByRole('button', { name: /identify this bird/i }));
 }
 
-describe('Home — HITL resume flow', () => {
+describe('Home — HITL conversation flow', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('renders the awaiting prompt when the stream pauses', async () => {
+  it('renders a clarifying question when the stream pauses', async () => {
     vi.mocked(identifyBirdStream).mockImplementation(
       async (_observation, onEvent: (e: StreamEvent) => void) => {
         onEvent({ type: 'session_id', session_id: 's-1' });
@@ -67,6 +67,13 @@ describe('Home — HITL resume flow', () => {
           type: 'result',
           data: {
             message: 'It is a Northern Cardinal.',
+            top_species: {
+              common_name: 'Northern Cardinal',
+              scientific_name: 'Cardinalis cardinalis',
+              range_link: 'https://ebird.org/species/norcar',
+              confidence: 'high',
+              reasoning: 'The crest and red plumage are diagnostic.',
+            },
             alternate_species: [],
           },
         });
@@ -85,13 +92,34 @@ describe('Home — HITL resume flow', () => {
       expect.any(Object),
     );
     expect(
-      await screen.findByText('It is a Northern Cardinal.'),
+      await screen.findByText('Northern Cardinal'),
     ).toBeInTheDocument();
-    expect(screen.queryByText('Crest or no crest?')).not.toBeInTheDocument();
+  });
+
+  it('shows an inconclusive answer when no species is returned', async () => {
+    vi.mocked(identifyBirdStream).mockImplementation(
+      async (_observation, onEvent: (e: StreamEvent) => void) => {
+        onEvent({ type: 'session_id', session_id: 's-7' });
+        onEvent({
+          type: 'result',
+          data: {
+            message: 'Need more detail.',
+            clarification: 'Was it bigger or smaller than a sparrow?',
+            alternate_species: [],
+          },
+        });
+      },
+    );
+
+    render(<Home />);
+    await fillAndSubmit();
+
+    expect(
+      await screen.findByText(/bigger or smaller than a sparrow/i),
+    ).toBeInTheDocument();
   });
 
   it('shows an error if answered after the session was lost', async () => {
-    // Stream pauses but never emits a session_id.
     vi.mocked(identifyBirdStream).mockImplementation(
       async (_observation, onEvent: (e: StreamEvent) => void) => {
         onEvent({

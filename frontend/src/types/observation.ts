@@ -11,6 +11,7 @@ export interface ObservationInput {
 export interface SpeciesInfo {
   scientific_name: string;
   common_name: string;
+  species_code?: string;
   range_link: string;
   confidence?: string;
   reasoning?: string;

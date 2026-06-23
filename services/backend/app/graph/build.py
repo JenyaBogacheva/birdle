@@ -34,17 +34,9 @@ def gate_feedback(state: BirdState) -> dict[str, Any]:
     messages = state.get("messages", [])
     call = routing._last_tool_call(messages) or {}
     call_id = call.get("id", "guard")
-    # Recompute which guard failed to phrase the feedback.
-    args = call.get("args", {})
-    if not (
-        routing._called_tool(messages, "get_regional_birds")
-        or routing._called_tool(messages, "get_historic_birds")
-    ):
-        reason = "presence"
-    elif (args.get("top_species") or {}).get("confidence") == "high":
-        reason = "frequency"
-    else:
-        reason = "presence"
+    # Reuse the router's own verdict so the corrective message names the guard
+    # that actually failed (e.g. presence on a species-changing follow-up).
+    reason = routing.failed_guard(state) or "presence"
     return {
         "messages": [
             ToolMessage(content=routing.guard_feedback_message(reason), tool_call_id=call_id)
@@ -59,6 +51,7 @@ def build_graph() -> Any:
 
     builder.add_node("guardrail", nodes.guardrail)
     builder.add_node("resolve_inputs", nodes.resolve_inputs)
+    builder.add_node("follow_up", nodes.follow_up)
     builder.add_node("investigate", nodes.investigate)
     builder.add_node("tools", ToolNode(EXECUTABLE_TOOLS))
     builder.add_node("gate_feedback", gate_feedback)
@@ -73,6 +66,9 @@ def build_graph() -> Any:
         {END: END, "resolve_inputs": "resolve_inputs"},  # type: ignore[arg-type]
     )
     builder.add_edge("resolve_inputs", "investigate")
+    # Follow-up turns re-enter here (via Command(goto="follow_up")): the agent
+    # gets the new message + full prior context and re-runs the investigation.
+    builder.add_edge("follow_up", "investigate")
     builder.add_conditional_edges("investigate", routing.route_after_investigate, _ROUTE_MAP)
     builder.add_edge("tools", "investigate")
     builder.add_edge("gate_feedback", "investigate")

@@ -30,10 +30,11 @@ class SpeciesInfo(BaseModel):
 
     scientific_name: str
     common_name: str
+    species_code: Optional[str] = Field(None, description="eBird species code, when known")
     range_link: str
     confidence: Optional[str] = Field(None, description="Confidence level: high, medium, or low")
     reasoning: Optional[str] = Field(None, description="Reasoning for the identification")
-    image_url: Optional[str] = Field(None, description="URL to species image from Macaulay Library")
+    image_url: Optional[str] = Field(None, description="URL to species image from Wikimedia")
     image_credit: Optional[str] = Field(None, description="Photographer credit")
 
 

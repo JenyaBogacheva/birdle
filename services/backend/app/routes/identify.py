@@ -30,20 +30,34 @@ router = APIRouter(prefix="/api", tags=["identification"])
 async def _build_species_info(data: dict) -> SpeciesInfo:
     """Build SpeciesInfo from an agent species dict, fetching its image."""
     common_name = data.get("common_name", "Unknown")
+    scientific_name = data.get("scientific_name", "")
     species_code = data.get("species_code", "")
 
+    # Wikimedia resolves most reliably by scientific name; fall back to common.
+    image_query = scientific_name or common_name
     image_url = None
     image_credit = None
-    if species_code:
-        image_data = await ebird_client.get_species_image(species_code)
+    if image_query and image_query != "Unknown":
+        image_data = await ebird_client.get_species_image(image_query)
         if image_data:
             image_url = image_data.get("image_url")
             image_credit = image_data.get("photographer")
 
+    # The eBird species page (with the range map) lives at /species/<code>;
+    # fall back to a search when the agent didn't supply a code — keyed on the
+    # scientific name (precise) rather than the common name (collision-prone,
+    # e.g. "Robin" US vs UK).
+    range_link = (
+        f"https://ebird.org/species/{species_code}"
+        if species_code
+        else f"https://ebird.org/explore?q={quote_plus(scientific_name or common_name)}"
+    )
+
     return SpeciesInfo(
         scientific_name=data.get("scientific_name", "Unknown"),
         common_name=common_name,
-        range_link=f"https://ebird.org/explore?q={quote_plus(common_name)}",
+        species_code=species_code or None,
+        range_link=range_link,
         confidence=data.get("confidence"),
         reasoning=data.get("reasoning"),
         image_url=image_url,
@@ -90,8 +104,9 @@ async def _sse_from_runner(events: AsyncIterator[dict], request_start: float) ->
                 candidates = event["data"]
 
                 async def resolve_image(candidate: dict) -> dict:
-                    if candidate.get("status") == "considering" and candidate.get("species_code"):
-                        img = await ebird_client.get_species_image(candidate["species_code"])
+                    # Candidates carry only a common name; Wikimedia handles it.
+                    if candidate.get("status") == "considering" and candidate.get("name"):
+                        img = await ebird_client.get_species_image(candidate["name"])
                         if img:
                             candidate["image_url"] = img["image_url"]
                             candidate["image_credit"] = img.get("photographer")
@@ -193,6 +208,28 @@ async def identify_bird_resume(payload: ResumeInput) -> StreamingResponse:
     """Turn 2+: resume a paused session with the user's reply (SSE)."""
     request_start = time.time()
     events = bird_runner.resume_stream(
+        session_id=payload.session_id, user_message=payload.user_message
+    )
+    return StreamingResponse(
+        _sse_from_runner(events, request_start),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@router.post("/identify/continue")
+async def identify_bird_continue(payload: ResumeInput) -> StreamingResponse:
+    """Follow-up after a result: another turn in the same session (SSE).
+
+    Resumes a pending question, or re-investigates a concluded session — the
+    agent may refine the identification or simply answer the user's message.
+    """
+    request_start = time.time()
+    events = bird_runner.continue_stream(
         session_id=payload.session_id, user_message=payload.user_message
     )
     return StreamingResponse(

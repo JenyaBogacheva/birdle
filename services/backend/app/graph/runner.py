@@ -128,6 +128,38 @@ class BirdGraphRunner:
         async for event in self._drive(session_id, Command(resume=user_message)):
             yield event
 
+    async def continue_stream(
+        self, session_id: str, user_message: str
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Follow-up turn. If the session is paused at a question, resume it;
+        if it already concluded, re-enter the investigation with the new message
+        (the agent may refine the identification or simply answer)."""
+        if not self._store.exists(session_id):
+            yield {
+                "type": "error",
+                "message": "This session expired. Please start a new identification.",
+            }
+            return
+        self._store.touch(session_id)
+        yield {"type": "session_id", "session_id": session_id}
+
+        snap = await self._graph.aget_state(self._config(session_id))
+        pending = bool(snap.next) if snap else False
+
+        if pending:
+            # Paused at a clarifying question — a normal resume.
+            yield {"type": "status", "message": "Picking up where we left off..."}
+            graph_input: Any = Command(resume=user_message)
+        else:
+            # Concluded — re-enter via the follow_up node, which appends the new
+            # message and hands back to investigate (the agent may re-identify or
+            # just answer). Terminal nodes already closed their tool calls.
+            yield {"type": "status", "message": "Taking another look..."}
+            graph_input = Command(goto="follow_up", update={"follow_up_message": user_message})
+
+        async for event in self._drive(session_id, graph_input):
+            yield event
+
 
 def _thinking_pieces(msg: Any) -> list[str]:
     """Extract human-visible thinking/text token text from an AIMessageChunk.

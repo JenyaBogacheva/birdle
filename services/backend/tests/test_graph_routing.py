@@ -1,8 +1,8 @@
 """Tests for the post-investigate router and confidence_gate guards."""
 
-from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
-from services.backend.app.graph import routing
+from services.backend.app.graph import prompts, routing
 
 
 def _ai(name=None, args=None, call_id="c1"):
@@ -129,3 +129,70 @@ class TestRouteAfterInvestigate:
             "gate_bounces": routing.MAX_GATE_BOUNCES - 1,
         }
         assert routing.route_after_investigate(state) == "investigate"
+
+    def test_followup_presence_guard_ignores_prior_turn_evidence(self):
+        # Turn 1 grounded + concluded species A. A follow-up re-enters and now
+        # submits a DIFFERENT species with no fresh presence check — the guard
+        # must NOT be satisfied by turn-1's get_regional_birds call.
+        follow_up = HumanMessage(
+            content=prompts.FOLLOW_UP_PROMPT.format(message="it had a red head")
+        )
+        msgs = [
+            _ai("get_regional_birds", {"region": "US-NY"}, call_id="t1a"),
+            _tool_result("get_regional_birds", call_id="t1a"),
+            _ai(
+                "submit_identification", {"top_species": {"species_code": "norcar"}}, call_id="t1b"
+            ),
+            ToolMessage(
+                content="identification submitted", name="submit_identification", tool_call_id="t1b"
+            ),
+            follow_up,
+            _ai(
+                "submit_identification",
+                {"top_species": {"species_code": "houfin", "confidence": "medium"}},
+                call_id="t2a",
+            ),
+        ]
+        assert routing.route_after_investigate({"messages": msgs, "ask_rounds": 0}) == "investigate"
+
+    def test_followup_same_species_passes_without_regrounding(self):
+        # Re-confirming the LAST grounded species on a follow-up needs no fresh
+        # presence call — last_species_code carries the prior grounding.
+        follow_up = HumanMessage(
+            content=prompts.FOLLOW_UP_PROMPT.format(message="what does it eat?")
+        )
+        msgs = [
+            follow_up,
+            _ai(
+                "submit_identification",
+                {"top_species": {"species_code": "norcar", "confidence": "medium"}},
+                call_id="t2a",
+            ),
+        ]
+        state = {"messages": msgs, "ask_rounds": 0, "last_species_code": "norcar"}
+        assert routing.route_after_investigate(state) == "submit_id"
+
+    def test_followup_presence_guard_passes_with_fresh_check(self):
+        # Same follow-up, but the agent re-grounded within the turn -> submit.
+        follow_up = HumanMessage(
+            content=prompts.FOLLOW_UP_PROMPT.format(message="it had a red head")
+        )
+        msgs = [
+            _ai("get_regional_birds", {"region": "US-NY"}, call_id="t1a"),
+            _tool_result("get_regional_birds", call_id="t1a"),
+            _ai(
+                "submit_identification", {"top_species": {"species_code": "norcar"}}, call_id="t1b"
+            ),
+            ToolMessage(
+                content="identification submitted", name="submit_identification", tool_call_id="t1b"
+            ),
+            follow_up,
+            _ai("get_regional_birds", {"region": "US-NY"}, call_id="t2a"),
+            _tool_result("get_regional_birds", call_id="t2a"),
+            _ai(
+                "submit_identification",
+                {"top_species": {"species_code": "houfin", "confidence": "medium"}},
+                call_id="t2b",
+            ),
+        ]
+        assert routing.route_after_investigate({"messages": msgs, "ask_rounds": 0}) == "submit_id"
