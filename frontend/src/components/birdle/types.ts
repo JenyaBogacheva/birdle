@@ -33,6 +33,8 @@ export interface InconclusiveItem {
   kind: 'inconclusive';
   title: string;
   body: string;
+  /** Optional "what would help" guidance, shown as a hint below the body. */
+  clarification?: string;
 }
 
 export interface ErrorItem { id: number; kind: 'error'; text: string; canRetry: boolean; }

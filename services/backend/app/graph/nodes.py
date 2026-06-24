@@ -286,11 +286,13 @@ async def inconclusive(state: BirdState) -> dict[str, Any]:
     call = _last_terminal_tool_call(messages) or {}
     args = call.get("args", {})
     final: dict[str, Any] = {
-        "message": args.get("message", prompts.FALLBACK_RESPONSE["message"]),
+        "message": args.get("message") or prompts.FALLBACK_RESPONSE["message"],
         "top_species": None,
         # Surface closest guesses as alternates so the existing card renders them.
         "alternate_species": args.get("closest_guesses") or [],
-        "clarification": args.get("what_would_help"),
+        # Always give concrete "what would help" examples — fall back to the
+        # standard prompts when the agent didn't spell them out itself.
+        "clarification": args.get("what_would_help") or prompts.FALLBACK_RESPONSE["clarification"],
     }
     return {
         "final": final,

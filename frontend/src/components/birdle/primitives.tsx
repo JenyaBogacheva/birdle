@@ -90,13 +90,17 @@ interface ChipProps {
   onClick?: () => void;
   active?: boolean;
   tone?: 'default' | 'accent';
+  /** Filled primary CTA (e.g. "This is my bird") — reads as an action button,
+   *  not the soft-tinted "selected" look used for unanswered accent options. */
+  solid?: boolean;
 }
 
-export function Chip({ children, onClick, active, tone = 'default' }: ChipProps) {
+export function Chip({ children, onClick, active, tone = 'default', solid }: ChipProps) {
   const [h, setH] = useState(false);
+  const filled = active || solid;
   const base = tone === 'accent'
-    ? { bg: active ? 'var(--accent)' : 'color-mix(in oklch, var(--accent) 12%, transparent)',
-        col: active ? 'var(--accent-ink)' : 'var(--accent-strong)', bd: 'color-mix(in oklch, var(--accent) 34%, transparent)' }
+    ? { bg: filled ? 'var(--accent)' : 'color-mix(in oklch, var(--accent) 12%, transparent)',
+        col: filled ? 'var(--accent-ink)' : 'var(--accent-strong)', bd: 'color-mix(in oklch, var(--accent) 34%, transparent)' }
     : { bg: h ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.62)', col: 'var(--ink)', bd: 'var(--hairline-strong)' };
   return (
     <button type="button" onClick={onClick} onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}

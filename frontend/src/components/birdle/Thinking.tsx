@@ -13,7 +13,7 @@ function ThinkingSummary({ count, onToggle, open }: { count: number; onToggle: (
       background: 'none', border: 'none', padding: '2px 0', cursor: 'pointer',
       fontFamily: 'var(--font-mono)', fontSize: 11.5, letterSpacing: '0.04em', color: 'var(--ink-faint)' }}>
       <Icon name="check" size={13} stroke={2} color="var(--accent-strong)" />
-      Weighed {count} {count === 1 ? 'signal' : 'signals'}
+      Worked through {count} {count === 1 ? 'step' : 'steps'}
       <Icon name="chevron" size={13} color="var(--ink-faint)"
         style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .2s' }} />
     </button>
