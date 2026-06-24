@@ -35,8 +35,6 @@ export interface CandidateInfo {
   image_credit?: string;
 }
 
-export type AppPhase = 'landing' | 'thinking' | 'reveal' | 'result';
-
 /** Payload the backend sends when the graph pauses to ask the user a question. */
 export interface AwaitingInput {
   reason: string;
