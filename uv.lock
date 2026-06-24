@@ -1,6 +1,6 @@
 version = 1
 revision = 3
-requires-python = ">=3.11"
+requires-python = ">=3.11, <4.0"
 resolution-markers = [
     "python_full_version >= '3.15'",
     "python_full_version < '3.15'",
@@ -123,6 +123,9 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
+evals = [
+    { name = "langsmith" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -148,6 +151,7 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.24.0" },
     { name = "ruff", specifier = ">=0.7.0" },
 ]
+evals = [{ name = "langsmith", specifier = ">=0.8" }]
 
 [[package]]
 name = "black"

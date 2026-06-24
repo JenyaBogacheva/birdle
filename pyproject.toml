@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "LLM-powered bird identification assistant"
 authors = [{ name = "Bird-ID Team" }]
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<4.0"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
@@ -27,6 +27,11 @@ dev = [
     "ruff>=0.7.0",
     "mypy>=1.13.0",
     "pre-commit>=4.4.0",
+]
+# Offline evaluation harness (evals/). langsmith ships transitively with
+# langchain, but the eval scripts import it directly, so pin it explicitly.
+evals = [
+    "langsmith>=0.8",
 ]
 
 [tool.uv]
