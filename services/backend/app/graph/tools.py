@@ -73,11 +73,13 @@ async def get_species_frequency(region: str, species_code: str, days: int = 14) 
         region=region, species_code=species_code, days=days
     )
     band = result.get("abundance", "unknown") if isinstance(result, dict) else "unknown"
+    # Prefer the common name eBird returns; fall back to the code if it's absent.
+    name = (result.get("common_name") if isinstance(result, dict) else "") or species_code
     _emit(
         {
             "type": "tool_result",
             "tool": "get_species_frequency",
-            "summary": f"{species_code}: {band} in {region}",
+            "summary": f"{name}: {band} in {region}",
         }
     )
     return result
@@ -111,7 +113,8 @@ async def lookup_family(species_code: str) -> dict[str, Any]:
     _emit({"type": "tool_call", "tool": "lookup_family", "input": {"species_code": species_code}})
     result = await ebird_client.lookup_family(species_code)
     fam = (result or {}).get("family", "unknown")
-    _emit({"type": "tool_result", "tool": "lookup_family", "summary": f"{species_code}: {fam}"})
+    name = (result or {}).get("common_name") or species_code
+    _emit({"type": "tool_result", "tool": "lookup_family", "summary": f"{name}: {fam}"})
     return result or {"species_code": species_code, "family": "", "order": ""}
 
 

@@ -134,9 +134,10 @@ export function ResultCard({ data, noBanner }: ResultCardProps) {
 interface InconclusiveCardProps {
   title: string;
   body: string;
+  clarification?: string;
 }
 
-export function InconclusiveCard({ title, body }: InconclusiveCardProps) {
+export function InconclusiveCard({ title, body, clarification }: InconclusiveCardProps) {
   return (
     <div style={{ background: 'var(--card-bg)', border: 'var(--card-border)', borderRadius: 18,
       padding: '18px 17px', boxShadow: '0 14px 40px -28px rgba(18,22,16,0.45)' }}>
@@ -149,6 +150,14 @@ export function InconclusiveCard({ title, body }: InconclusiveCardProps) {
           color: 'var(--ink)' }}>{title}</div>
       </div>
       <RichText text={body} style={{ fontSize: 14.5, lineHeight: 1.55 }} />
+      {clarification && (
+        <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start', marginTop: 13, padding: '11px 13px',
+          borderRadius: 11, background: 'color-mix(in oklch, var(--accent) 9%, var(--input-bg))',
+          border: '1px solid var(--hairline-strong)' }}>
+          <Icon name="info" size={16} color="var(--accent-strong)" style={{ flex: 'none', marginTop: 1 }} />
+          <RichText text={clarification} style={{ fontSize: 13.5, lineHeight: 1.5, color: 'var(--ink-soft)' }} />
+        </div>
+      )}
     </div>
   );
 }

@@ -99,7 +99,7 @@ button { font-family: var(--font-body); }
 
 /* ====================== desktop layout (lg and up) ====================== */
 .bd-desk {
-  width: 100%; min-height: 100vh; min-height: 100dvh; flex: 1; display: flex; position: relative;
+  width: 100%; height: 100vh; height: 100dvh; flex: 1; display: flex; position: relative;
   overflow: hidden; font-family: var(--font-body); color: var(--ink); background: var(--scrim);
 }
 

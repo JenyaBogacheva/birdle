@@ -164,11 +164,18 @@ export function useBirdleSession(): BirdleSession {
           const card = toResultCardData(event.data);
           finishThinking((f): FeedItem => {
             if (!card) {
+              const message = event.data.message || '';
+              const clarification = event.data.clarification || '';
               return {
                 id: uid(),
                 kind: 'inconclusive',
                 title: 'Not enough to go on — yet',
-                body: event.data.clarification || event.data.message || '',
+                // Lead with the agent's own explanation; surface the "what would
+                // help" examples as a separate hint. Only fall back to the
+                // clarification as the body when there's no message at all, so
+                // the same text never renders twice.
+                body: message || clarification,
+                clarification: message ? clarification : undefined,
               };
             }
             // If this turn identifies the same bird as the most recent result,

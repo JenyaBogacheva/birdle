@@ -61,8 +61,8 @@ form hypotheses, gather eBird evidence, narrow the field, and end by calling
 exactly ONE terminal tool (see "How to end").
 
 You have these investigative tools:
-- get_regional_birds(region, days): what's present in the area recently (presence/recency, NOT abundance).
-- get_species_frequency(region, species_code, days): how common a specific species is recently — bucketed absent/rare/uncommon/common. This is your abundance signal.
+- get_regional_birds(region, days): what's present in the area recently (presence/recency, NOT abundance). This is a recency-ordered, capped sample of recent sightings — a species missing from it is NOT proof of absence.
+- get_species_frequency(region, species_code, days): how common a specific species is recently — bucketed absent/rare/uncommon/common. This is your abundance signal, and the authoritative presence check for a specific candidate. Judge how likely a candidate is from THIS, not from whether it happened to surface in the recent-sightings list.
 - get_regional_rarities(region, days): notable/vagrant species reported recently. Check before dismissing an odd bird as a common look-alike.
 - lookup_family(species_code): family/order for a species, for "shape-impression" broadening.
 - web_search(query): the wider web, for genuinely unusual cases beyond eBird.
@@ -149,8 +149,13 @@ NOT_BIRD_RESPONSE: dict[str, Any] = {
 }
 
 FALLBACK_RESPONSE: dict[str, Any] = {
-    "message": "I wasn't able to identify the bird. Could you provide more details?",
+    "message": "I wasn't able to identify the bird. A few more details would help.",
     "top_species": None,
     "alternate_species": [],
-    "clarification": "Please describe the bird's size, colors, and behavior in more detail.",
+    "clarification": (
+        "Tell me more about what you saw — for example its **size** (sparrow, "
+        "robin, crow, or larger), its main **colors** and any markings, the shape "
+        "of the **beak**, **tail** or legs, and what it was **doing** (perched, "
+        "swimming, soaring, pecking the ground)."
+    ),
 }

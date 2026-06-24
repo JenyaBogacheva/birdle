@@ -65,13 +65,16 @@ class TestGetSpeciesFrequency:
     async def test_success_buckets(self):
         ebird = eBirdClient()
         mock_response = MagicMock()
-        mock_response.json.return_value = [{"speciesCode": "norcar"}] * 125  # 125 reports
+        mock_response.json.return_value = [
+            {"speciesCode": "norcar", "comName": "Northern Cardinal"}
+        ] * 125  # 125 reports
         mock_response.raise_for_status = MagicMock()
         ebird._client.get = AsyncMock(return_value=mock_response)
 
         result = await ebird.get_species_frequency("US-NY", "norcar", days=14)
 
         assert result["species_code"] == "norcar"
+        assert result["common_name"] == "Northern Cardinal"
         assert result["report_count"] == 125
         assert result["abundance"] == "uncommon"
         assert result["capped"] is False
@@ -102,21 +105,53 @@ class TestGetSpeciesFrequency:
 
 
 class TestGetSpeciesImage:
-    async def test_success_uses_thumbnail_verbatim(self):
+    async def test_upscales_thumbnail_when_source_is_large(self):
         ebird = eBirdClient()
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "title": "Northern cardinal",
             "thumbnail": {"source": "https://upload.wikimedia.org/a/b/file.jpg/330px-file.jpg"},
+            "originalimage": {"source": "https://upload.wikimedia.org/a/b/file.jpg", "width": 2400},
         }
         mock_response.raise_for_status = MagicMock()
         ebird._client.get = AsyncMock(return_value=mock_response)
 
         result = await ebird.get_species_image("Cardinalis cardinalis")
 
-        # The thumbnail URL is used as-is (Wikimedia only serves fixed widths).
-        assert result["image_url"] == "https://upload.wikimedia.org/a/b/file.jpg/330px-file.jpg"
+        # Source (2400px) is wider than the 1280 target, so the thumb is bumped.
+        assert result["image_url"] == "https://upload.wikimedia.org/a/b/file.jpg/1280px-file.jpg"
         assert result["photographer"] == "Wikimedia Commons"
+
+    async def test_uses_original_when_source_smaller_than_target(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "thumbnail": {"source": "https://upload.wikimedia.org/a/b/small.jpg/320px-small.jpg"},
+            "originalimage": {"source": "https://upload.wikimedia.org/a/b/small.jpg", "width": 800},
+        }
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        result = await ebird.get_species_image("Rara avis")
+
+        # Source is only 800px — upscaling the thumb to 1280 would 400, so we
+        # serve the original file (the sharpest render that's guaranteed valid).
+        assert result["image_url"] == "https://upload.wikimedia.org/a/b/small.jpg"
+
+    async def test_thumbnail_not_downscaled(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "thumbnail": {"source": "https://upload.wikimedia.org/a/b/file.jpg/2000px-file.jpg"},
+            "originalimage": {"source": "https://upload.wikimedia.org/a/b/file.jpg", "width": 5000},
+        }
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        result = await ebird.get_species_image("Cardinalis cardinalis")
+
+        # Thumb already exceeds the target — left untouched (no downscale).
+        assert result["image_url"] == "https://upload.wikimedia.org/a/b/file.jpg/2000px-file.jpg"
 
     async def test_falls_back_to_originalimage(self):
         ebird = eBirdClient()

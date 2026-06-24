@@ -6,6 +6,7 @@ public Wikimedia REST API (Macaulay's API was retired / is auth-gated).
 """
 
 import logging
+import re
 import time
 from typing import Any, Optional
 from urllib.parse import quote
@@ -24,6 +25,24 @@ WIKIPEDIA_UA = "BirdleAI/1.0 (bird identification; https://github.com/birdle-ai)
 TIMEOUT = 10.0
 
 FREQUENCY_FETCH_CAP = 400  # cap rows fetched per species; ">=cap" reads as "common"
+
+# Target width for species photos. The page-summary API hands back a ~320px
+# lead thumbnail, which looks pixelated stretched across a card banner / poster.
+IMAGE_TARGET_WIDTH = 1280
+
+
+def _upscale_wikimedia_thumb(url: str, target_width: int = IMAGE_TARGET_WIDTH) -> str:
+    """Bump a Wikimedia thumbnail URL to a larger on-demand render.
+
+    Commons thumb URLs end in ``/<width>px-<file>``; Wikimedia renders any
+    requested width on demand, so raising it yields a much sharper image than
+    the ~320px lead thumbnail the page-summary API returns by default. URLs that
+    don't match the thumb pattern (e.g. a full original) are returned unchanged.
+    """
+    m = re.search(r"/(\d+)px-([^/]+)$", url)
+    if not m or int(m.group(1)) >= target_width:
+        return url
+    return f"{url[: m.start(1)]}{target_width}{url[m.end(1) :]}"
 
 
 def _abundance_bucket(report_count: int) -> str:
@@ -54,7 +73,7 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
         await self._client.aclose()
 
     async def get_regional_birds(
-        self, region: str = "US", days: int = 14, max_results: int = 50
+        self, region: str = "US", days: int = 14, max_results: int = 200
     ) -> dict[str, Any]:
         """
         Fetch recent bird observations for a region from eBird.
@@ -141,6 +160,7 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
         fallback: dict[str, Any] = {
             "region": region,
             "species_code": species_code,
+            "common_name": "",
             "days_searched": days,
             "report_count": 0,
             "capped": False,
@@ -163,6 +183,9 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
             result = {
                 "region": region,
                 "species_code": species_code,
+                # eBird's observation rows carry the common name; surface it so
+                # the UI/agent can name the species instead of the bare code.
+                "common_name": data[0].get("comName", "") if data else "",
                 "days_searched": days,
                 "report_count": count,
                 "capped": count >= FREQUENCY_FETCH_CAP,
@@ -466,12 +489,20 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
             resp.raise_for_status()
             data = resp.json()
 
-            # Use the thumbnail Wikimedia hands back verbatim — it only serves a
-            # fixed set of cached widths per file, so rewriting the width risks a
-            # 400. Fall back to the (larger) original image when no thumb exists.
-            image_url = (data.get("thumbnail") or {}).get("source") or (
-                data.get("originalimage") or {}
-            ).get("source")
+            # The page-summary thumbnail is a small (~320px) cached render that
+            # looks pixelated stretched across the card banner. Get a sharper
+            # image without risking a 400: Wikimedia refuses to render a raster
+            # thumb WIDER than its source, so only upscale when the source file
+            # is genuinely larger than our target; otherwise the original file
+            # itself is the sharpest render that's guaranteed valid.
+            orig = data.get("originalimage") or {}
+            orig_src, orig_w = orig.get("source"), orig.get("width")
+            thumb = (data.get("thumbnail") or {}).get("source")
+            image_url: Optional[str]
+            if thumb and isinstance(orig_w, int) and orig_w > IMAGE_TARGET_WIDTH:
+                image_url = _upscale_wikimedia_thumb(thumb)
+            else:
+                image_url = orig_src or thumb
             if not image_url:
                 logger.info(
                     "No image found for species",
