@@ -25,6 +25,8 @@ class BirdState(TypedDict, total=False):
     description: str
     location: str
     observed_at: Optional[str]
+    lat: Optional[float]
+    lng: Optional[float]
     # Resolved by resolve_inputs
     region: Optional[str]  # validated eBird region code, or None
     observed_window: str  # "recent" or a historic "YYYY-MM-DD"

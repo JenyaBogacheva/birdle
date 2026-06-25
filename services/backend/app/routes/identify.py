@@ -148,8 +148,10 @@ async def identify_bird(observation: ObservationInput) -> RecommendationResponse
             async for event in bird_runner.run_stream(
                 session_id=session_id,
                 description=observation.description,
-                location=observation.location,
+                location=observation.location or "",
                 observed_at=observation.observed_at,
+                lat=observation.lat,
+                lng=observation.lng,
             ):
                 if event["type"] == "result":
                     final = event["data"]
@@ -189,8 +191,10 @@ async def identify_bird_stream(observation: ObservationInput) -> StreamingRespon
     events = bird_runner.run_stream(
         session_id=session_id,
         description=observation.description,
-        location=observation.location,
+        location=observation.location or "",
         observed_at=observation.observed_at,
+        lat=observation.lat,
+        lng=observation.lng,
     )
     return StreamingResponse(
         _sse_from_runner(events, request_start),

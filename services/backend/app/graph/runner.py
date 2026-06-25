@@ -91,7 +91,13 @@ class BirdGraphRunner:
             yield {"type": "error", "message": "An unexpected error occurred. Please try again."}
 
     async def run_stream(
-        self, session_id: str, description: str, location: str, observed_at: Optional[str] = None
+        self,
+        session_id: str,
+        description: str,
+        location: str,
+        observed_at: Optional[str] = None,
+        lat: Optional[float] = None,
+        lng: Optional[float] = None,
     ) -> AsyncIterator[dict[str, Any]]:
         """Turn 1: fresh graph run for a new session."""
         self._store.touch(session_id)
@@ -105,6 +111,8 @@ class BirdGraphRunner:
             "description": description,
             "location": location,
             "observed_at": observed_at,
+            "lat": lat,
+            "lng": lng,
             "messages": [SystemMessage(content=prompts.SYSTEM_PROMPT), HumanMessage(content=user)],
             "ask_rounds": 0,
             "final": None,

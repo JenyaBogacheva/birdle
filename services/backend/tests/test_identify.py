@@ -75,9 +75,20 @@ class TestIdentifyEndpoint:
         resp = client.post("/api/identify", json={"location": "NY"})
         assert resp.status_code == 422
 
-    def test_identify_missing_location(self, client):
-        resp = client.post("/api/identify", json={"description": "red bird"})
-        assert resp.status_code == 422
+    def test_identify_location_is_now_optional(self, client):
+        # location is optional since Task 5 (lat/lng can substitute); omitting
+        # it is no longer a 422 — the request reaches the graph.
+        with patch(f"{ROUTE}.bird_runner") as runner:
+            runner.run_stream = lambda **kw: _aevents(
+                [
+                    {
+                        "type": "result",
+                        "data": {"message": "ok", "top_species": None, "alternate_species": []},
+                    }
+                ]
+            )
+            resp = client.post("/api/identify", json={"description": "red bird"})
+        assert resp.status_code == 200
 
     def test_identify_awaiting_degrades_to_clarification(self, client):
         with patch(f"{ROUTE}.bird_runner") as runner:
@@ -189,6 +200,20 @@ class TestStreamEndpoint:
     def test_stream_missing_description(self, client):
         resp = client.post("/api/identify/stream", json={"location": "NY"})
         assert resp.status_code == 422
+
+
+class TestObservationInputSchema:
+    def test_observation_input_accepts_coordinates_without_location(self):
+        from services.backend.app.schemas.observation import ObservationInput
+
+        obs = ObservationInput(description="small brown bird", lat=11.9, lng=108.4)
+        assert obs.lat == 11.9 and obs.lng == 108.4 and (obs.location or "") == ""
+
+    def test_observation_input_still_accepts_text_location(self):
+        from services.backend.app.schemas.observation import ObservationInput
+
+        obs = ObservationInput(description="x", location="Dalat")
+        assert obs.location == "Dalat" and obs.lat is None
 
 
 class TestResumeEndpoint:
