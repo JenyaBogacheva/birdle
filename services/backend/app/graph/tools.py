@@ -68,7 +68,14 @@ async def get_regional_birds(
                 }
             )
             return result
-        # geo returned 0 species — fall back to the region's recency list
+        # geo returned 0 species — emit a paired tool_result before falling back
+        _emit(
+            {
+                "type": "tool_result",
+                "tool": "get_regional_birds",
+                "summary": "Sparse within 50 km — widening to the region",
+            }
+        )
 
     _emit(
         {
