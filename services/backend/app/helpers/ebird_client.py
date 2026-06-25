@@ -472,14 +472,14 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
         if not cc:
             return []
         if cc in self._subnat1_cache:
-            return self._subnat1_cache[cc]
+            return list(self._subnat1_cache[cc])
         try:
             url = f"{EBIRD_API_BASE}/ref/region/list/subnational1/{cc}"
             resp = await self._client.get(url, headers={"X-eBirdApiToken": settings.ebird_token})
             resp.raise_for_status()
             out = [{"code": r.get("code", ""), "name": r.get("name", "")} for r in resp.json()]
             self._subnat1_cache[cc] = out
-            return out
+            return list(out)
         except Exception as e:
             logger.warning(
                 f"eBird subnational1 list failed: {e}",

@@ -84,6 +84,17 @@ async def test_geocode_error_returns_none(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_reverse_geocode_error_returns_none(monkeypatch):
+    c = GeocoderClient()
+
+    async def boom(*a, **k):
+        raise httpx.ConnectError("down")
+
+    monkeypatch.setattr(c._client, "get", boom)
+    assert await c.reverse_geocode(11.9, 108.4) is None
+
+
+@pytest.mark.asyncio
 async def test_reverse_geocode_parses(monkeypatch):
     c = GeocoderClient()
     payload = {
