@@ -182,6 +182,18 @@ def visual_feedback_message(top_name: str, best: str, note: str) -> str:
     )
 
 
+def visual_mismatch_message(top_name: str, note: str) -> str:
+    """Corrective message when no submitted candidate's photo fits the description."""
+    return (
+        f"Visual check: the reference photo for **{top_name}** does not match the "
+        f"description, and none of your other candidates fit it either. {note} "
+        f"Do not force {top_name}. Widen your search to species you haven't weighed "
+        f"yet (the description may point to a different bird), and re-ground any new "
+        f"candidate. If nothing genuinely fits, lower your confidence or conclude "
+        f"inconclusive — an honest 'I'm not sure' is better than a contradicted ID."
+    )
+
+
 NOT_BIRD_RESPONSE: dict[str, Any] = {
     "message": (
         "I'm Birdle, a bird identification assistant! "

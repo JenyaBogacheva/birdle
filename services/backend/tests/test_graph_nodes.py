@@ -306,8 +306,10 @@ class TestVerifyVisual:
         assert "Burmese Shrike" in tm.content
         assert "Black-throated Tit" in tm.content
 
-    async def test_confirms_when_best_match_is_none(self):
-        ai = _submit_ai(_TIT, [_SHRIKE])
+    async def test_bounces_when_no_candidate_photo_fits(self):
+        # Top is wrong AND nothing shown fits -> bounce the agent to widen / lower
+        # confidence, rather than rubber-stamp a contradicted ID.
+        ai = _submit_ai(_TIT, [_SHRIKE], call_id="sub_none")
         verdict = {"best_match": "none", "top_still_best": False, "note": "neither fits well"}
         with (
             patch.object(
@@ -318,8 +320,12 @@ class TestVerifyVisual:
             patch.object(nodes, "_run_visual_verdict", new=AsyncMock(return_value=verdict)),
         ):
             out = await nodes.verify_visual({"messages": [ai], "description": "x"})
-        # No clearly-better *named* candidate -> don't bounce on a vague 'none'.
-        assert out["visual_verdict"] == "confirm"
+        assert out["visual_verdict"] == "revise"
+        assert out["visual_bounces"] == 1
+        tm = next(m for m in out["messages"] if isinstance(m, ToolMessage))
+        assert tm.tool_call_id == "sub_none"
+        assert "does not match" in tm.content
+        assert "Black-throated Tit" in tm.content
 
     async def test_skips_when_no_photo_available(self):
         ai = _submit_ai(_TIT)

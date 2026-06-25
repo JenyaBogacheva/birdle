@@ -344,15 +344,22 @@ async def verify_visual(state: BirdState) -> dict[str, Any]:
         },
     )
 
-    # Confirm when the top pick still fits, or no clearly-better named candidate.
-    if top_still or best.lower() in ("", "none", str(top_name).lower()):
+    # Confirm when the top pick still fits the photo (or the verdict named the top
+    # pick itself as the best match — no real disagreement).
+    if top_still or best.lower() == str(top_name).lower():
         if note:
             _emit({"type": "detective_note", "message": "Reference photos fit the description."})
         return {"visual_verdict": "confirm"}
 
-    # Contradiction: a different candidate's photo fits the description better.
-    _emit({"type": "detective_note", "message": f"The photos: {best} fits better."})
-    feedback = prompts.visual_feedback_message(str(top_name), best, note)
+    # The top pick's photo does NOT fit the description. Bounce with a correction:
+    #  - a different shown candidate fits better -> steer the agent to it;
+    #  - nothing shown fits -> tell the agent to widen / lower confidence.
+    if best and best.lower() != "none":
+        _emit({"type": "detective_note", "message": f"The photos: {best} fits better."})
+        feedback = prompts.visual_feedback_message(str(top_name), best, note)
+    else:
+        _emit({"type": "detective_note", "message": "The photos don't fit the description."})
+        feedback = prompts.visual_mismatch_message(str(top_name), note)
     return {
         "messages": _closing_messages(messages[-1], feedback),
         "visual_bounces": bounces + 1,

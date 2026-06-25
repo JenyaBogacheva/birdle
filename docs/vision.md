@@ -63,9 +63,11 @@ Architecture principles:
   base64 — Anthropic's URL fetcher is blocked by Wikimedia) against the description
   in a single Sonnet vision call. The agent reasons from text + eBird data only, so
   its shape/structure claims are otherwise ungrounded and can rest on a stereotype
-  ("shrikes are slender, not round"). When a different candidate's photo fits the
-  description better, the ID bounces back to `investigate` with a correction (once,
-  `MAX_VISUAL_BOUNCES`). It weights structure (shape, bill) over plumage colour,
+  ("shrikes are slender, not round"). If the top pick's photo doesn't fit, the ID
+  bounces back to `investigate` once (`MAX_VISUAL_BOUNCES`) — either steered to a
+  better-fitting candidate that was shown, or, if none fit, told to widen / lower
+  confidence / conclude inconclusive rather than force a contradicted ID. It weights
+  structure (shape, bill) over plumage colour,
   since the reference is usually an adult while the bird seen may be juvenile/female.
   Degrades gracefully: any fetch/vision failure just accepts the ID.
 - Deterministic region resolution: `resolve_inputs` geocodes the location (Nominatim)
