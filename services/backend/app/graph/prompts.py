@@ -130,11 +130,24 @@ as text — the terminal tool call IS your answer. Do NOT fetch images.\
 FOLLOW_UP_PROMPT = """\
 Follow-up from the user about the same sighting: {message}
 
-Re-investigate as needed (you may call your tools again), then end by calling \
-exactly ONE terminal tool, as before — submit_identification to confirm or \
-revise the species (fold any answer to the user's question into your reasoning, \
-keeping the same species_code if it hasn't changed), ask_user if one more \
-detail would decide it, or inconclusive. Do not reply with plain text.\
+First decide what kind of follow-up this is:
+- A QUESTION about the bird you identified (diet, range, how to tell it apart, \
+etc.) — answer it, keep the same species_code, and fold the answer into your \
+reasoning.
+- A NEW or CORRECTING detail about what they saw ("it was smaller", "no crest", \
+"it was on the water", "that's not it") — treat it as fresh evidence that can \
+OVERTURN your prior identification. Test your previous species honestly against \
+the FULL description including this detail. Do NOT stretch or rationalise the old \
+species to fit; if it no longer fits well, actively reconsider alternatives that \
+match better and re-ground any new candidate exactly as in a first investigation \
+(regional presence, and frequency before HIGH confidence). Lower your confidence \
+when the new detail genuinely conflicts with your earlier answer.
+
+The user pushing back is a signal to look harder at alternatives, not to defend \
+your earlier answer. Re-investigate as needed (call your tools again), then end \
+by calling exactly ONE terminal tool, as before — submit_identification (confirm \
+OR revise the species), ask_user if one more detail would decide it, or \
+inconclusive. Do not reply with plain text.\
 """
 
 NOT_BIRD_RESPONSE: dict[str, Any] = {
