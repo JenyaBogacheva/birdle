@@ -67,6 +67,7 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
         # alternates); cache by normalized query. ``None`` is cached too, to
         # avoid re-hitting Wikimedia for a title that has no image.
         self._image_cache: dict[str, Optional[dict[str, str]]] = {}
+        self._subnat1_cache: dict[str, list[dict[str, str]]] = {}
 
     async def close(self) -> None:
         """Close the shared HTTP client."""
@@ -461,6 +462,89 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
                 },
             )
             return None
+
+    async def get_subnational1_list(self, country_code: str) -> list[dict[str, str]]:
+        """eBird's authoritative subnational1 (state/province) list for a country.
+
+        Returns ``[{"code", "name"}]`` (empty on any error). Cached per country.
+        """
+        cc = (country_code or "").upper()
+        if not cc:
+            return []
+        if cc in self._subnat1_cache:
+            return list(self._subnat1_cache[cc])
+        try:
+            url = f"{EBIRD_API_BASE}/ref/region/list/subnational1/{cc}"
+            resp = await self._client.get(url, headers={"X-eBirdApiToken": settings.ebird_token})
+            resp.raise_for_status()
+            out = [{"code": r.get("code", ""), "name": r.get("name", "")} for r in resp.json()]
+            self._subnat1_cache[cc] = out
+            return list(out)
+        except Exception as e:
+            logger.warning(
+                f"eBird subnational1 list failed: {e}",
+                extra={"operation": "get_subnational1_list", "country": cc, "status": "error"},
+            )
+            return []
+
+    async def get_nearby_birds(
+        self, lat: float, lng: float, dist: int = 50, days: int = 14
+    ) -> dict[str, Any]:
+        """Recent species within ``dist`` km of a point (presence/recency).
+
+        Same return shape as ``get_regional_birds`` (``region`` == "geo").
+        """
+        start_time = time.time()
+        fallback: dict[str, Any] = {
+            "region": "geo",
+            "days_searched": days,
+            "total_species": 0,
+            "species_observed": [],
+        }
+        try:
+            url = f"{EBIRD_API_BASE}/data/obs/geo/recent"
+            params = {"lat": lat, "lng": lng, "dist": dist, "back": days}
+            resp = await self._client.get(
+                url, headers={"X-eBirdApiToken": settings.ebird_token}, params=params
+            )
+            resp.raise_for_status()
+            species_map: dict[str, dict[str, Any]] = {}
+            for obs in resp.json():
+                code = obs.get("speciesCode", "")
+                key = code or obs.get("comName", "Unknown")
+                if key not in species_map:
+                    species_map[key] = {
+                        "common_name": obs.get("comName", "Unknown"),
+                        "scientific_name": obs.get("sciName", ""),
+                        "species_code": code,
+                    }
+            species = list(species_map.values())
+            logger.info(
+                "eBird nearby observations fetched",
+                extra={
+                    "operation": "get_nearby_birds",
+                    "dist_km": dist,
+                    "species_count": len(species),
+                    "latency_ms": round((time.time() - start_time) * 1000, 2),
+                    "status": "success",
+                },
+            )
+            return {
+                "region": "geo",
+                "days_searched": days,
+                "total_species": len(species),
+                "species_observed": species,
+            }
+        except Exception as e:
+            logger.warning(
+                f"eBird nearby observations failed: {e}",
+                extra={
+                    "operation": "get_nearby_birds",
+                    "status": "error",
+                    "error_type": type(e).__name__,
+                },
+            )
+            return fallback
 
     async def get_species_image(self, query: str) -> Optional[dict[str, str]]:
         """

@@ -303,6 +303,75 @@ class TestGetHistoricBirds:
         assert result["species_observed"] == []
 
 
+class TestGetSubnational1List:
+    async def test_parses_and_caches(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = [
+            {"code": "VN-68", "name": "Lam Dong"},
+            {"code": "VN-44", "name": "Hanoi"},
+        ]
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        out = await ebird.get_subnational1_list("vn")
+        assert {"code": "VN-68", "name": "Lam Dong"} in out
+        # second call with uppercased key hits cache — no extra HTTP call
+        await ebird.get_subnational1_list("VN")
+        ebird._client.get.assert_called_once()
+
+    async def test_error_returns_empty(self):
+        ebird = eBirdClient()
+        ebird._client.get = AsyncMock(side_effect=Exception("down"))
+        assert await ebird.get_subnational1_list("ZZ") == []
+
+
+class TestGetNearbyBirds:
+    async def test_shape_and_deduplication(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = [
+            {"speciesCode": "x", "comName": "X", "sciName": "Xx"},
+            {"speciesCode": "x", "comName": "X", "sciName": "Xx"},  # dup collapses
+            {"speciesCode": "y", "comName": "Y", "sciName": "Yy"},
+        ]
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        res = await ebird.get_nearby_birds(11.9, 108.4)
+
+        assert res["region"] == "geo"
+        assert res["total_species"] == 2
+        assert {"common_name": "X", "scientific_name": "Xx", "species_code": "x"} in res[
+            "species_observed"
+        ]
+
+    async def test_calls_correct_url_and_params(self):
+        ebird = eBirdClient()
+        mock_response = MagicMock()
+        mock_response.json.return_value = []
+        mock_response.raise_for_status = MagicMock()
+        ebird._client.get = AsyncMock(return_value=mock_response)
+
+        await ebird.get_nearby_birds(11.9, 108.4, dist=50, days=14)
+
+        call_kwargs = ebird._client.get.call_args
+        assert "/data/obs/geo/recent" in call_kwargs[0][0]
+        params = call_kwargs[1]["params"]
+        assert params["lat"] == 11.9
+        assert params["lng"] == 108.4
+        assert params["dist"] == 50
+        assert params["back"] == 14
+
+    async def test_error_returns_fallback(self):
+        ebird = eBirdClient()
+        ebird._client.get = AsyncMock(side_effect=Exception("boom"))
+        res = await ebird.get_nearby_birds(0.0, 0.0)
+        assert res["region"] == "geo"
+        assert res["species_observed"] == []
+        assert res["total_species"] == 0
+
+
 class TestGetRegionSpeciesList:
     async def test_success(self):
         ebird = eBirdClient()

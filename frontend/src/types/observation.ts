@@ -6,6 +6,8 @@ export interface ObservationInput {
   description: string;
   location?: string;
   observed_at?: string;
+  lat?: number;
+  lng?: number;
 }
 
 export interface SpeciesInfo {

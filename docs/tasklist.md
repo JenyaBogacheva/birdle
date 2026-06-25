@@ -13,6 +13,7 @@
 | 4 | Resilience & observability | Complete | ✅ | Timeouts, retries, structured logs |
 | 5 | Retro Gen Z UI + rebrand to birdle-ai | Complete | ✅ | Fun colors, emojis, casual tone |
 | 6 | Agentic architecture (Claude + Tavily) | Complete | ✅ | Replace OpenAI+MCP with Claude agent |
+| 7 | Deterministic region resolution + "Use my location" | Complete | ✅ | Geocode→name-match eBird; GPS-radius presence |
 
 **Status legend**
 - ⏳ Planned
@@ -237,6 +238,26 @@
 - **Tests:** All rewritten to mock Anthropic SDK instead of OpenAI
 - **Config:** `render.yaml`, `.env.example`, `README.md`, `CLAUDE.md`, `vision.md` updated
 - **Branch:** `feat/iteration-6-agentic-architecture`
+
+### Iteration 7 — Deterministic region resolution + "Use my location" ✅
+**Goal:** Stop the LLM from guessing eBird region codes. Resolve the location deterministically by geocoding (Nominatim) and name-matching eBird's authoritative subnational1 list; use a GPS radius for presence and the region code for abundance/rarities; add a one-tap "Use my location" button.
+**Test:** Submit "Dalat, Vietnam" ➝ region resolves to `VN-68` (not whole-country `VN`, not the ISO ghost `VN-35`) and presence comes from the 50 km radius; the location button sends coordinates that reverse-geocode the same way.
+
+- [x] `geocoder.py`: Nominatim forward + reverse geocoding (httpx, cached, graceful None).
+- [x] eBird helpers: `get_subnational1_list` (name-match source) + `get_nearby_birds` (point+radius presence).
+- [x] `resolve_region()`: geocode → name-match subnational1 (diacritic-insensitive) → eBird code, country fallback; coordinates win.
+- [x] `resolve_inputs` node rewritten; the LLM now only parses the date.
+- [x] `get_regional_birds` serves a 50 km GPS-radius list when a specific point is known (via LangGraph `InjectedState`), falling back to region recency.
+- [x] Optional `lat`/`lng` threaded through schema, state, runner, routes; aligned TS interface.
+- [x] `📍 Use my location` button (browser geolocation), degrades to text on denial.
+
+**Result:** Non-Western locations resolve to the correct fine-grained region; large-region candidate lists shed habitat-irrelevant false candidates.
+
+**Notes:**
+- County / subnational2 precision intentionally NOT resolved — presence is point-based (radius), and the count-based abundance buckets are calibrated to subnational1 report volumes (county counts would mis-bucket).
+- Empirically grounded: Nominatim's ISO-3166-2 can diverge from eBird's frozen codes, so we name-match eBird's own list rather than trusting the ISO string.
+- Future: interactive map pin; a keyed/self-hosted geocoder if request volume outgrows Nominatim's usage policy.
+- **Branch:** `feat/region-resolution`
 
 ## Definition of Done
 - Tasks for the iteration are checked off.

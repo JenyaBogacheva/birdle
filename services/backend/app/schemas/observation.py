@@ -12,8 +12,18 @@ class ObservationInput(BaseModel):
     """User's bird observation input."""
 
     description: str = Field(..., min_length=1, description="Description of the observed bird")
-    location: str = Field(..., min_length=1, description="Location where bird was observed")
+    location: Optional[str] = Field(
+        "", description="Location where bird was observed (optional if coordinates given)"
+    )
     observed_at: Optional[str] = Field(None, description="When the bird was observed")
+    lat: Optional[float] = Field(None, description="Latitude from the 'use my location' button")
+    lng: Optional[float] = Field(None, description="Longitude from the 'use my location' button")
+
+
+class ReverseGeocodeResponse(BaseModel):
+    """A concise place label for a coordinate (for the 'use my location' field)."""
+
+    label: str = Field("", description="Short human-readable place name, or '' if unknown")
 
 
 class ResumeInput(BaseModel):

@@ -65,18 +65,32 @@ class TestCompiledGraph:
             patch.object(N, "_raw_anthropic") as raw,
             patch.object(
                 N,
-                "_parse_inputs",
-                new=AsyncMock(return_value={"region_code": "US-NY", "observed_window": "recent"}),
+                "resolve_region",
+                new=AsyncMock(
+                    return_value={
+                        "region_code": "US-NY",
+                        "lat": 40.7,
+                        "lng": -74.0,
+                        "precision": "point",
+                        "display_name": "New York",
+                    }
+                ),
             ),
-            patch.object(N, "ebird_client") as eb,
+            patch.object(N, "_parse_date", new=AsyncMock(return_value="recent")),
             patch.object(N, "_agent_model", return_value=fake_model),
             patch("services.backend.app.graph.tools.ebird_client") as teb,
         ):
             raw.messages.create = AsyncMock(return_value=MagicMock())
-            eb.get_region_info = AsyncMock(return_value={"code": "US-NY"})
             teb.get_regional_birds = AsyncMock(
                 return_value={
                     "region": "US-NY",
+                    "species_observed": [{"common_name": "Northern Cardinal"}],
+                }
+            )
+            teb.get_nearby_birds = AsyncMock(
+                return_value={
+                    "region": "geo",
+                    "total_species": 1,
                     "species_observed": [{"common_name": "Northern Cardinal"}],
                 }
             )
@@ -146,18 +160,32 @@ class TestCompiledGraph:
             patch.object(N, "_raw_anthropic") as raw,
             patch.object(
                 N,
-                "_parse_inputs",
-                new=AsyncMock(return_value={"region_code": "US-NY", "observed_window": "recent"}),
+                "resolve_region",
+                new=AsyncMock(
+                    return_value={
+                        "region_code": "US-NY",
+                        "lat": 40.7,
+                        "lng": -74.0,
+                        "precision": "point",
+                        "display_name": "New York",
+                    }
+                ),
             ),
-            patch.object(N, "ebird_client") as eb,
+            patch.object(N, "_parse_date", new=AsyncMock(return_value="recent")),
             patch.object(N, "_agent_model", return_value=fake_model),
             patch("services.backend.app.graph.tools.ebird_client") as teb,
         ):
             raw.messages.create = AsyncMock(return_value=MagicMock())
-            eb.get_region_info = AsyncMock(return_value={"code": "US-NY"})
             teb.get_regional_birds = AsyncMock(
                 return_value={
                     "region": "US-NY",
+                    "species_observed": [{"common_name": "Northern Cardinal"}],
+                }
+            )
+            teb.get_nearby_birds = AsyncMock(
+                return_value={
+                    "region": "geo",
+                    "total_species": 1,
                     "species_observed": [{"common_name": "Northern Cardinal"}],
                 }
             )
