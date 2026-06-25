@@ -224,7 +224,7 @@ class TestReverseGeocodeEndpoint:
         with patch(f"{ROUTE}.geocoder.reverse_geocode", AsyncMock(return_value=geo)):
             resp = client.get("/api/geocode/reverse?lat=11.9&lng=108.4")
         assert resp.status_code == 200
-        assert resp.json()["label"] == "Đà Lạt, Tỉnh Lâm Đồng"
+        assert resp.json()["label"] == "Đà Lạt, Lâm Đồng"
 
     def test_empty_label_when_unresolved(self, client):
         with patch(f"{ROUTE}.geocoder.reverse_geocode", AsyncMock(return_value=None)):

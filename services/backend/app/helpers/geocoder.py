@@ -110,6 +110,34 @@ TIMEOUT = 10.0
 # Address keys, most-specific first, for a concise human-readable place label.
 _LOCALITY_KEYS = ("city", "town", "village", "municipality", "suburb", "county")
 
+# Leading admin-type words to drop from a region name for display (longest first),
+# so "Tỉnh Lâm Đồng" reads as "Lâm Đồng". Case/diacritics of the rest are kept.
+_DISPLAY_ADMIN_PREFIXES = (
+    "thành phố",
+    "province of",
+    "state of",
+    "provincia de",
+    "provincia di",
+    "tỉnh",
+    "province",
+    "provincia",
+    "state",
+    "region",
+    "prefecture",
+    "governorate",
+    "oblast",
+    "okrug",
+    "krai",
+)
+
+
+def _clean_admin_for_display(name: str) -> str:
+    low = name.lower()
+    for p in _DISPLAY_ADMIN_PREFIXES:
+        if low.startswith(p + " "):
+            return name[len(p) :].strip()
+    return name
+
 
 @dataclass(frozen=True)
 class GeoResult:
@@ -123,12 +151,13 @@ class GeoResult:
 
     @property
     def short_label(self) -> str:
-        """A concise place name to show in a location field (e.g. "Đà Lạt")."""
-        if self.locality and self.admin1_name and self.locality != self.admin1_name:
-            return f"{self.locality}, {self.admin1_name}"
+        """A concise place name to show in a location field (e.g. "Đà Lạt, Lâm Đồng")."""
+        admin = _clean_admin_for_display(self.admin1_name) if self.admin1_name else None
+        if self.locality and admin and self.locality != admin:
+            return f"{self.locality}, {admin}"
         return (
             self.locality
-            or self.admin1_name
+            or admin
             or (self.display_name.split(",")[0].strip() if self.display_name else "")
         )
 
