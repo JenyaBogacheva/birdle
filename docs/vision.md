@@ -4,6 +4,7 @@
 - **Frontend**: React + Vite (TypeScript) with Tailwind for quick styling.
 - **Backend**: Single FastAPI app (Python) that serves REST endpoints.
 - **AI**: Anthropic Claude Sonnet with extended thinking for agentic reasoning; direct eBird API calls for regional data; Tavily for web search.
+- **Geocoding**: OpenStreetMap Nominatim (forward + reverse), called via `httpx` (no new library), to resolve locations deterministically to eBird regions + coordinates.
 - **Tooling**: pnpm for frontend deps, Poetry for Python, uvicorn for local runs.
 
 ### 2. Development Principles
@@ -57,6 +58,16 @@ Architecture principles:
   -> investigate ⇄ tools -> confidence_gate -> submit/ask/inconclusive) -> SSE.
 - Agent decides what data to fetch (eBird, images, web search); the graph enforces
   the hard truths (bird check, presence-before-concluding, frequency-before-HIGH).
+- Deterministic region resolution: `resolve_inputs` geocodes the location (Nominatim)
+  and name-matches eBird's authoritative subnational1 list — the LLM never guesses a
+  region code; it only parses the date. The eBird subnational code is matched by name
+  (renumbering-proof), NOT by trusting Nominatim's ISO-3166-2 string, which can diverge
+  from eBird's frozen codes (e.g. Lâm Đồng: ISO `VN-35` but eBird `VN-68`). A `📍 Use my
+  location` button supplies exact coordinates (reverse-geocoded). Presence (`get_regional_birds`)
+  uses a 50 km GPS radius when a specific point is known — habitat-relevant, fewer false
+  candidates in large regions — while abundance (`get_species_frequency`) and rarities
+  stay region-coded at subnational1 (their count-based buckets are calibrated to region
+  report volumes, so finer-than-state codes would mis-bucket).
 - Turn-based with human-in-the-loop: the agent can pause (`interrupt()`) to ask a
   clarifying/disambiguation question and resume with the user's reply.
 - Follow-ups after a conclusion re-enter the graph at a `follow_up` node (which
