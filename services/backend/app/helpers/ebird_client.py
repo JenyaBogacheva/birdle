@@ -5,6 +5,7 @@ Uses httpx.AsyncClient for eBird observations; species photos come from the
 public Wikimedia REST API (Macaulay's API was retired / is auth-gated).
 """
 
+import base64
 import logging
 import re
 import time
@@ -621,6 +622,35 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
                     "operation": "get_species_image",
                     "query": query,
                     "latency_ms": round(latency_ms, 2),
+                    "status": "error",
+                    "error_type": type(e).__name__,
+                },
+            )
+            return None
+
+    async def fetch_image_b64(self, url: str) -> Optional[tuple[str, str]]:
+        """Download an image and return ``(base64_data, media_type)``, or None.
+
+        Anthropic's server-side URL image fetcher is refused by Wikimedia's
+        hotlink / User-Agent policy, so for vision calls we download the bytes
+        ourselves (sending the descriptive UA Wikimedia asks for) and inline them
+        as base64. Returns None on any error or unsupported media type.
+        """
+        if not url:
+            return None
+        supported = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+        try:
+            resp = await self._client.get(url, headers={"User-Agent": WIKIPEDIA_UA})
+            resp.raise_for_status()
+            media_type = (resp.headers.get("content-type") or "").split(";")[0].strip().lower()
+            if media_type not in supported:
+                return None
+            return base64.standard_b64encode(resp.content).decode("ascii"), media_type
+        except Exception as e:
+            logger.warning(
+                f"Image byte fetch failed: {e}",
+                extra={
+                    "operation": "fetch_image_b64",
                     "status": "error",
                     "error_type": type(e).__name__,
                 },

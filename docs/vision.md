@@ -55,9 +55,21 @@ Observability: structured logging to stdout for manual review.
 
 Architecture principles:
 - Agentic flow as a LangGraph: SPA -> FastAPI -> graph (guardrail -> resolve_inputs
-  -> investigate ⇄ tools -> confidence_gate -> submit/ask/inconclusive) -> SSE.
+  -> investigate ⇄ tools -> confidence_gate -> verify_visual -> submit/ask/inconclusive) -> SSE.
 - Agent decides what data to fetch (eBird, images, web search); the graph enforces
   the hard truths (bird check, presence-before-concluding, frequency-before-HIGH).
+- Visual grounding: before a `submit_identification` is accepted, `verify_visual`
+  compares the candidates' reference photos (Wikimedia lead images, fetched as
+  base64 — Anthropic's URL fetcher is blocked by Wikimedia) against the description
+  in a single Sonnet vision call. The agent reasons from text + eBird data only, so
+  its shape/structure claims are otherwise ungrounded and can rest on a stereotype
+  ("shrikes are slender, not round"). If the top pick's photo doesn't fit, the ID
+  bounces back to `investigate` once (`MAX_VISUAL_BOUNCES`) — either steered to a
+  better-fitting candidate that was shown, or, if none fit, told to widen / lower
+  confidence / conclude inconclusive rather than force a contradicted ID. It weights
+  structure (shape, bill) over plumage colour,
+  since the reference is usually an adult while the bird seen may be juvenile/female.
+  Degrades gracefully: any fetch/vision failure just accepts the ID.
 - Deterministic region resolution: `resolve_inputs` geocodes the location (Nominatim)
   and name-matches eBird's authoritative subnational1 list — the LLM never guesses a
   region code; it only parses the date. The eBird subnational code is matched by name

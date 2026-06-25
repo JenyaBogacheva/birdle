@@ -13,6 +13,10 @@ MAX_ASK_ROUNDS = 2
 # After this many guard bounces (submit rejected -> investigate), give up and
 # return an honest "inconclusive" instead of looping.
 MAX_GATE_BOUNCES = 2
+# How many times the visual check may bounce a submitted ID back for reconsideration.
+# Kept at 1: each bounce costs a vision call + a full investigate turn, and one
+# strong correction is enough to redirect the agent. After this we accept the ID.
+MAX_VISUAL_BOUNCES = 1
 
 # Extended-thinking budget (must be < max_tokens). tool_choice MUST stay auto
 # when thinking is enabled (Anthropic constraint) — never force tool use.
@@ -106,7 +110,9 @@ questions, submit/inconclusive messages and reasoning):
   ("the user", "the observer") — write "you described…", not "the user noted…".
 
 Be friendly, honest about uncertainty, and show your reasoning. Do NOT emit JSON
-as text — the terminal tool call IS your answer. Do NOT fetch images.\
+as text — the terminal tool call IS your answer. Do NOT fetch images yourself: a
+separate visual check compares reference photos of your candidates against the
+description after you submit, and may hand back a correction to reconsider.\
 """
 
 # Injected by the follow_up node when the user continues after a conclusion.
@@ -132,6 +138,61 @@ by calling exactly ONE terminal tool, as before — submit_identification (confi
 OR revise the species), ask_user if one more detail would decide it, or \
 inconclusive. Do not reply with plain text.\
 """
+
+# --------------------------------------------------------------- visual check
+# Run after the agent submits an ID. A vision call compares the candidates'
+# reference photos against the description; if a different candidate's photo
+# fits better, the ID is bounced back to investigate with visual_feedback_message.
+VISUAL_VERIFY_MODEL = AGENT_MODEL  # Sonnet is vision-capable; no thinking here.
+
+VISUAL_VERIFY_PROMPT = """\
+A birder described a bird and an AI proposed candidate species. One reference \
+photo is provided per candidate (labelled). Compare the description against the \
+photos and judge which candidate's photo best matches.
+
+The bird that was seen:
+Description: {description}
+Region: {region}
+
+How to judge:
+- Weight STRUCTURE first: overall body shape and bulk (round vs slim), posture, \
+the proportions of head, tail and legs, and especially BILL SHAPE (e.g. a thick \
+hooked bill vs a fine pointed one). These do not change with age or sex.
+- Treat PLUMAGE COLOUR as soft evidence. The reference photo is usually an adult, \
+often a male in fresh plumage, but the bird seen may be a juvenile, a female, or \
+in non-breeding plumage. A colour difference ALONE must never eliminate a \
+candidate whose structure fits.
+- The first photo ("Top candidate") is the AI's current top pick. Decide whether \
+it is still among the best matches, or whether another labelled candidate fits \
+the description better.
+
+Call visual_verdict with your decision.\
+"""
+
+
+def visual_feedback_message(top_name: str, best: str, note: str) -> str:
+    """Corrective message when the visual check prefers a different candidate."""
+    return (
+        f"Visual check: comparing reference photos against the description, "
+        f"**{best}** matches better than your current top pick **{top_name}**. "
+        f"{note} "
+        f"Reconsider {best} as the top candidate — re-ground it (regional presence, "
+        f"and frequency before HIGH confidence) and resubmit. Only keep {top_name} "
+        f"on top if you can justify, against the description, why it fits better."
+    )
+
+
+def visual_mismatch_message(top_name: str, note: str) -> str:
+    """Corrective message when no submitted candidate's photo fits the description."""
+    return (
+        f"Visual check: the reference photo for **{top_name}** does not match the "
+        f"description, and none of your other candidates fit it either. {note} "
+        f"Do not force {top_name}. Widen your search to species you haven't weighed "
+        f"yet (the description may point to a different bird), and re-ground any new "
+        f"candidate. If nothing genuinely fits, lower your confidence or conclude "
+        f"inconclusive — an honest 'I'm not sure' is better than a contradicted ID."
+    )
+
 
 NOT_BIRD_RESPONSE: dict[str, Any] = {
     "message": (

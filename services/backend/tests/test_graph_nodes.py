@@ -2,7 +2,7 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from services.backend.app.graph import nodes, prompts
 
@@ -234,3 +234,144 @@ class TestTerminalNodes:
         assert len(out["messages"]) == 1
         assert out["messages"][0].tool_call_id == "d1"
         assert out["messages"][0].content != "concluded inconclusive"
+
+
+def _submit_ai(top, alternates=None, call_id="sub_1"):
+    """An AIMessage carrying a submit_identification call (what verify_visual reads)."""
+    return _ai_with_tool_call(
+        "submit_identification",
+        {
+            "message": "here's my ID",
+            "top_species": top,
+            "alternate_species": alternates or [],
+        },
+        call_id=call_id,
+    )
+
+
+_TIT = {"common_name": "Black-throated Tit", "species_code": "blttit1"}
+_SHRIKE = {"common_name": "Burmese Shrike", "species_code": "burshr1"}
+
+
+class TestVerifyVisual:
+    async def test_confirms_when_top_photo_still_fits(self):
+        ai = _submit_ai(_TIT, [_SHRIKE])
+        verdict = {"best_match": "Black-throated Tit", "top_still_best": True, "note": "fits"}
+        with (
+            patch.object(
+                nodes,
+                "_candidate_images",
+                new=AsyncMock(
+                    return_value=[
+                        ("Black-throated Tit", "d1", "image/jpeg"),
+                        ("Burmese Shrike", "d2", "image/jpeg"),
+                    ]
+                ),
+            ),
+            patch.object(nodes, "_run_visual_verdict", new=AsyncMock(return_value=verdict)),
+        ):
+            out = await nodes.verify_visual({"messages": [ai], "description": "round brown bird"})
+        assert out["visual_verdict"] == "confirm"
+        assert "messages" not in out  # nothing appended -> submit_id reads the open call
+
+    async def test_bounces_when_another_candidate_fits_better(self):
+        # The shrike case: top pick is the Tit, but the Shrike's photo matches better.
+        ai = _submit_ai(_TIT, [_SHRIKE], call_id="sub_xyz")
+        verdict = {
+            "best_match": "Burmese Shrike",
+            "top_still_best": False,
+            "note": "Round, hooded, thick hooked bill fits the shrike.",
+        }
+        with (
+            patch.object(
+                nodes,
+                "_candidate_images",
+                new=AsyncMock(
+                    return_value=[
+                        ("Black-throated Tit", "d1", "image/jpeg"),
+                        ("Burmese Shrike", "d2", "image/jpeg"),
+                    ]
+                ),
+            ),
+            patch.object(nodes, "_run_visual_verdict", new=AsyncMock(return_value=verdict)),
+        ):
+            out = await nodes.verify_visual(
+                {"messages": [ai], "description": "round brown bird, black head, long tail"}
+            )
+        assert out["visual_verdict"] == "revise"
+        assert out["visual_bounces"] == 1
+        # The open submit call is closed with the corrective feedback, by id.
+        tm = next(m for m in out["messages"] if isinstance(m, ToolMessage))
+        assert tm.tool_call_id == "sub_xyz"
+        assert "Burmese Shrike" in tm.content
+        assert "Black-throated Tit" in tm.content
+
+    async def test_bounces_when_no_candidate_photo_fits(self):
+        # Top is wrong AND nothing shown fits -> bounce the agent to widen / lower
+        # confidence, rather than rubber-stamp a contradicted ID.
+        ai = _submit_ai(_TIT, [_SHRIKE], call_id="sub_none")
+        verdict = {"best_match": "none", "top_still_best": False, "note": "neither fits well"}
+        with (
+            patch.object(
+                nodes,
+                "_candidate_images",
+                new=AsyncMock(return_value=[("Black-throated Tit", "d1", "image/jpeg")]),
+            ),
+            patch.object(nodes, "_run_visual_verdict", new=AsyncMock(return_value=verdict)),
+        ):
+            out = await nodes.verify_visual({"messages": [ai], "description": "x"})
+        assert out["visual_verdict"] == "revise"
+        assert out["visual_bounces"] == 1
+        tm = next(m for m in out["messages"] if isinstance(m, ToolMessage))
+        assert tm.tool_call_id == "sub_none"
+        assert "does not match" in tm.content
+        assert "Black-throated Tit" in tm.content
+
+    async def test_skips_when_no_photo_available(self):
+        ai = _submit_ai(_TIT)
+        with (
+            patch.object(nodes, "_candidate_images", new=AsyncMock(return_value=[])),
+            patch.object(nodes, "_run_visual_verdict", new=AsyncMock()) as verdict,
+        ):
+            out = await nodes.verify_visual({"messages": [ai], "description": "x"})
+        assert out["visual_verdict"] == "confirm"
+        verdict.assert_not_called()  # never even made the vision call
+
+    async def test_skips_when_bounce_budget_spent(self):
+        ai = _submit_ai(_TIT, [_SHRIKE])
+        with (
+            patch.object(nodes, "_candidate_images", new=AsyncMock()) as imgs,
+            patch.object(nodes, "_run_visual_verdict", new=AsyncMock()) as verdict,
+        ):
+            out = await nodes.verify_visual(
+                {"messages": [ai], "visual_bounces": prompts.MAX_VISUAL_BOUNCES}
+            )
+        assert out["visual_verdict"] == "confirm"
+        imgs.assert_not_called()
+        verdict.assert_not_called()
+
+    async def test_skips_when_same_species_already_concluded(self):
+        ai = _submit_ai(_TIT)
+        with (
+            patch.object(nodes, "_candidate_images", new=AsyncMock()) as imgs,
+            patch.object(nodes, "_run_visual_verdict", new=AsyncMock()) as verdict,
+        ):
+            out = await nodes.verify_visual({"messages": [ai], "last_species_code": "blttit1"})
+        assert out["visual_verdict"] == "confirm"
+        imgs.assert_not_called()
+        verdict.assert_not_called()
+
+    async def test_degrades_to_confirm_when_vision_call_fails(self):
+        ai = _submit_ai(_TIT, [_SHRIKE])
+        with (
+            patch.object(
+                nodes,
+                "_candidate_images",
+                new=AsyncMock(return_value=[("Black-throated Tit", "d1", "image/jpeg")]),
+            ),
+            patch.object(
+                nodes, "_run_visual_verdict", new=AsyncMock(side_effect=Exception("vision boom"))
+            ),
+        ):
+            out = await nodes.verify_visual({"messages": [ai], "description": "x"})
+        assert out["visual_verdict"] == "confirm"  # never block an ID on our own failure
