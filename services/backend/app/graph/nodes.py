@@ -96,7 +96,7 @@ async def resolve_inputs(state: BirdState) -> dict[str, Any]:
     display = resolved.get("display_name")
 
     if display:
-        _emit({"type": "status", "message": f"Looking around {display}..."})
+        _emit({"type": "status", "message": f"Looking around {display}…"})
 
     answer: Optional[str] = None
     if region is None and ask_rounds < prompts.MAX_ASK_ROUNDS:
@@ -112,11 +112,11 @@ async def resolve_inputs(state: BirdState) -> dict[str, Any]:
             payload = {
                 "reason": "clarify_location",
                 "question": "Where did you see it? A location helps a lot -- or skip and I'll do my best.",
-                "options": ["Skip -- no location"],
+                "options": ["Skip — no location"],
             }
         answer = interrupt(payload)
         ask_rounds += 1
-        if answer and answer.strip().lower() not in {"skip", "skip -- no location", "not sure"}:
+        if answer and answer.strip().lower() not in {"skip", "skip — no location", "not sure"}:
             reparsed = await resolve_region(text=answer)
             region, lat, lng = reparsed["region_code"], reparsed["lat"], reparsed["lng"]
 

@@ -69,3 +69,40 @@ async def test_resolve_inputs_coordinates_take_precedence(monkeypatch):
         {"location": "", "observed_at": None, "ask_rounds": 0, "lat": 11.9, "lng": 108.4}
     )
     assert seen == {"lat": 11.9, "lng": 108.4} and out["region"] == "VN-68"
+
+
+@pytest.mark.asyncio
+async def test_hard_clarify_reresolves_with_user_answer(monkeypatch):
+    calls = {"n": 0}
+
+    async def fake_resolve(text=None, lat=None, lng=None):
+        calls["n"] += 1
+        if calls["n"] == 1:  # initial: location unresolved
+            return {
+                "region_code": None,
+                "lat": None,
+                "lng": None,
+                "precision": "none",
+                "display_name": None,
+            }
+        return {
+            "region_code": "VN-68",
+            "lat": 11.9,
+            "lng": 108.4,
+            "precision": "point",
+            "display_name": "Da Lat",
+        }
+
+    async def fake_date(observed_at):
+        return "recent"
+
+    monkeypatch.setattr(nodes, "resolve_region", fake_resolve)
+    monkeypatch.setattr(nodes, "_parse_date", fake_date)
+    monkeypatch.setattr(nodes, "interrupt", lambda payload: "Da Lat, Vietnam")
+    out = await nodes.resolve_inputs(
+        {"location": "mystery place", "observed_at": None, "ask_rounds": 0}
+    )
+    assert out["region"] == "VN-68"
+    assert out["lat"] == 11.9 and out["lng"] == 108.4
+    assert out["ask_rounds"] == 1
+    assert calls["n"] == 2  # initial + re-resolve after the answer
