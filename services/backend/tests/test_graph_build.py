@@ -87,6 +87,13 @@ class TestCompiledGraph:
                     "species_observed": [{"common_name": "Northern Cardinal"}],
                 }
             )
+            teb.get_nearby_birds = AsyncMock(
+                return_value={
+                    "region": "geo",
+                    "total_species": 1,
+                    "species_observed": [{"common_name": "Northern Cardinal"}],
+                }
+            )
 
             state = await graph.ainvoke(
                 {
@@ -172,6 +179,13 @@ class TestCompiledGraph:
             teb.get_regional_birds = AsyncMock(
                 return_value={
                     "region": "US-NY",
+                    "species_observed": [{"common_name": "Northern Cardinal"}],
+                }
+            )
+            teb.get_nearby_birds = AsyncMock(
+                return_value={
+                    "region": "geo",
+                    "total_species": 1,
                     "species_observed": [{"common_name": "Northern Cardinal"}],
                 }
             )

@@ -16,10 +16,11 @@ every tool is directly unit-testable via `.ainvoke({...})`.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any, Optional
 
 from langchain_core.tools import tool
 from langgraph.config import get_stream_writer
+from langgraph.prebuilt import InjectedState
 
 from ..helpers.ebird_client import ebird_client
 from ..helpers.web_search import web_search_client
@@ -39,8 +40,36 @@ def _emit(event: dict[str, Any]) -> None:
 
 
 @tool
-async def get_regional_birds(region: str, days: int = 14) -> dict[str, Any]:
-    """Recently observed bird species in an eBird region (presence/recency, not abundance)."""
+async def get_regional_birds(
+    region: str,
+    days: int = 14,
+    state: Annotated[Optional[dict], InjectedState] = None,  # injected; hidden from the model
+) -> dict[str, Any]:
+    """Recently observed bird species near the sighting (presence/recency, not abundance)."""
+    lat = (state or {}).get("lat")
+    lng = (state or {}).get("lng")
+
+    if lat is not None and lng is not None:
+        _emit(
+            {
+                "type": "tool_call",
+                "tool": "get_regional_birds",
+                "input": {"lat": lat, "lng": lng, "dist_km": 50},
+            }
+        )
+        result = await ebird_client.get_nearby_birds(lat, lng, dist=50, days=max(days, 30))
+        if isinstance(result, dict) and result.get("total_species", 0) > 0:
+            shown = len(result.get("species_observed", []))
+            _emit(
+                {
+                    "type": "tool_result",
+                    "tool": "get_regional_birds",
+                    "summary": f"{result['total_species']} species within 50 km (reviewing {shown})",
+                }
+            )
+            return result
+        # geo returned 0 species — fall back to the region's recency list
+
     _emit(
         {
             "type": "tool_call",
