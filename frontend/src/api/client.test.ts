@@ -104,6 +104,21 @@ describe('identifyBirdStream', () => {
       identifyBirdStream({ description: 'x', location: 'y' }, () => {}),
     ).rejects.toThrow('Could not connect to streaming endpoint');
   });
+
+  it('sends lat/lng in the identify request body when present', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('data: {"type":"done"}\n\n', { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    await identifyBirdStream(
+      { description: 'small brown bird', lat: 11.9, lng: 108.4 },
+      () => {},
+      new AbortController().signal,
+    );
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string);
+    expect(body.lat).toBe(11.9);
+    expect(body.lng).toBe(108.4);
+  });
 });
 
 describe('resumeIdentificationStream', () => {
