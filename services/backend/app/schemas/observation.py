@@ -35,6 +35,13 @@ class ResumeInput(BaseModel):
     )
 
 
+class ImageFocus(BaseModel):
+    """Hero-photo focal point as a CSS background-position percentage (0–100)."""
+
+    x: int = Field(..., ge=0, le=100, description="Horizontal focal point (0=left, 100=right)")
+    y: int = Field(..., ge=0, le=100, description="Vertical focal point (0=top, 100=bottom)")
+
+
 class SpeciesInfo(BaseModel):
     """Information about a bird species."""
 
@@ -46,6 +53,9 @@ class SpeciesInfo(BaseModel):
     reasoning: Optional[str] = Field(None, description="Reasoning for the identification")
     image_url: Optional[str] = Field(None, description="URL to species image from Wikimedia")
     image_credit: Optional[str] = Field(None, description="Photographer credit")
+    image_focus: Optional[ImageFocus] = Field(
+        None, description="Hero-photo focal point; None falls back to a static crop position"
+    )
 
 
 class CandidateStatus(str, Enum):

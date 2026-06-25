@@ -10,6 +10,12 @@ export interface ObservationInput {
   lng?: number;
 }
 
+/** Hero-photo focal point as a CSS background-position percentage (0–100). */
+export interface ImageFocus {
+  x: number;
+  y: number;
+}
+
 export interface SpeciesInfo {
   scientific_name: string;
   common_name: string;
@@ -19,6 +25,7 @@ export interface SpeciesInfo {
   reasoning?: string;
   image_url?: string;
   image_credit?: string;
+  image_focus?: ImageFocus;
 }
 
 export interface RecommendationResponse {
