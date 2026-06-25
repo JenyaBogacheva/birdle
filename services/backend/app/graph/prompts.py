@@ -24,30 +24,13 @@ GUARDRAIL_PROMPT = (
     "about bird watching/ornithology? Answer only YES or NO."
 )
 
-# resolve_inputs structured parse. Returns strict JSON only.
+# resolve_inputs date-only parse. Returns a single token, no JSON.
 RESOLVE_PROMPT = """\
-You convert a user's free-text location and time into structured fields for
-eBird lookups. Return ONLY a JSON object, no prose.
-
-Fields:
-- "region_code": the MOST SPECIFIC eBird region code for the location, or null
-  if the location is empty/unintelligible. Rules:
-  - US states: US-XX (US-NY). Counties: US-XX-### if the user named a specific
-    county/borough you are confident about (Brooklyn -> US-NY-047).
-  - Canadian provinces CA-XX, Australian states AU-XX, UK GB-ENG/GB-SCT/...
-  - Other large countries: ISO 3166-2 subnational (RU-MOW, BR-SP, IN-DL).
-  - Small countries: ISO 3166-1 alpha-2 (NZ, IL, SG).
-  - If the location is present but you cannot map it to any code, return null.
-- "observed_window": "recent" if no date was given or the date is within the
-  last ~14 days or clearly means "lately"; "YYYY-MM-DD" if a specific past date
-  is given or clearly inferable; "unparseable" if a date was given but is
-  genuinely ambiguous (e.g. "idk, summer?").
-
-Examples:
-  location="Brooklyn, NY" time=null -> {"region_code":"US-NY-047","observed_window":"recent"}
-  location="Berlin" time="last January 15th" -> {"region_code":"DE-BE","observed_window":"YYYY-MM-DD"}
-  location="" time=null -> {"region_code":null,"observed_window":"recent"}
-  location="my backyard" time="summer maybe" -> {"region_code":null,"observed_window":"unparseable"}
+You convert a user's free-text observation time into a single token. Output ONLY
+the token, no prose, no JSON:
+- "recent" — no date, or within ~14 days, or words meaning "lately".
+- "YYYY-MM-DD" — a specific past date is given or clearly inferable.
+- "unparseable" — a date was attempted but is genuinely ambiguous (e.g. "summer?").
 """
 
 SYSTEM_PROMPT = """\

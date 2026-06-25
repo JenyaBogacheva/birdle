@@ -104,7 +104,9 @@ class BirdGraphRunner:
         yield {"type": "session_id", "session_id": session_id}
         yield {"type": "status", "message": "Checking your description..."}
 
-        user = f"I observed a bird...\n\nDescription: {description}\nLocation: {location}"
+        user = f"I observed a bird...\n\nDescription: {description}"
+        if location:
+            user += f"\nLocation: {location}"
         if observed_at:
             user += f"\nObserved at: {observed_at}"
         graph_input = {

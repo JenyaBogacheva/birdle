@@ -33,17 +33,27 @@ class TestGuardrailNode:
         assert out.get("final") is None  # fail open -> proceed
 
 
+def _fake_region(region_code, lat=None, lng=None, precision="point", display_name=None):
+    """Helper: return a resolve_region-style dict."""
+    return {
+        "region_code": region_code,
+        "lat": lat,
+        "lng": lng,
+        "precision": precision,
+        "display_name": display_name,
+    }
+
+
 class TestResolveInputs:
     async def test_resolves_valid_region(self):
         with (
             patch.object(
                 nodes,
-                "_parse_inputs",
-                new=AsyncMock(return_value={"region_code": "US-NY", "observed_window": "recent"}),
+                "resolve_region",
+                new=AsyncMock(return_value=_fake_region("US-NY", lat=40.7, lng=-74.0)),
             ),
-            patch.object(nodes, "ebird_client") as eb,
+            patch.object(nodes, "_parse_date", new=AsyncMock(return_value="recent")),
         ):
-            eb.get_region_info = AsyncMock(return_value={"code": "US-NY"})
             out = await nodes.resolve_inputs(
                 {
                     "description": "red bird",
@@ -61,9 +71,10 @@ class TestResolveInputs:
             patch.object(nodes, "interrupt", return_value="skip") as intr,
             patch.object(
                 nodes,
-                "_parse_inputs",
-                new=AsyncMock(return_value={"region_code": None, "observed_window": "recent"}),
+                "resolve_region",
+                new=AsyncMock(return_value=_fake_region(None, precision="none")),
             ),
+            patch.object(nodes, "_parse_date", new=AsyncMock(return_value="recent")),
         ):
             out = await nodes.resolve_inputs(
                 {"description": "red bird", "location": "", "observed_at": None, "ask_rounds": 0}
@@ -78,9 +89,10 @@ class TestResolveInputs:
             patch.object(nodes, "interrupt") as intr,
             patch.object(
                 nodes,
-                "_parse_inputs",
-                new=AsyncMock(return_value={"region_code": None, "observed_window": "recent"}),
+                "resolve_region",
+                new=AsyncMock(return_value=_fake_region(None, precision="none")),
             ),
+            patch.object(nodes, "_parse_date", new=AsyncMock(return_value="recent")),
         ):
             out = await nodes.resolve_inputs(
                 {
@@ -100,12 +112,11 @@ class TestResolveInputs:
         with (
             patch.object(
                 nodes,
-                "_parse_inputs",
-                new=AsyncMock(return_value={"region_code": "US-NY", "observed_window": "recent"}),
+                "resolve_region",
+                new=AsyncMock(return_value=_fake_region("US-NY", lat=40.7, lng=-74.0)),
             ),
-            patch.object(nodes, "ebird_client") as eb,
+            patch.object(nodes, "_parse_date", new=AsyncMock(return_value="recent")),
         ):
-            eb.get_region_info = AsyncMock(return_value={"code": "US-NY"})
             out = await nodes.resolve_inputs(
                 {
                     "description": "red bird",

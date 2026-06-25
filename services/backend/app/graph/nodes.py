@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any, Optional
 
@@ -13,7 +12,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
 
-from ..helpers.ebird_client import ebird_client
+from ..helpers.geocoder import resolve_region
 from ..settings import settings
 from . import prompts
 from .state import BirdState
@@ -60,86 +59,73 @@ async def guardrail(state: BirdState) -> dict[str, Any]:
     return {"final": None}
 
 
-async def _parse_inputs(location: str, observed_at: Optional[str]) -> dict[str, Any]:
-    """Haiku structured parse: location/time -> {region_code, observed_window}."""
+async def _parse_date(observed_at: Optional[str]) -> str:
+    """Haiku parse: free-text time -> 'recent' | 'YYYY-MM-DD' | 'unparseable'."""
+    if not observed_at or not observed_at.strip():
+        return "recent"
     try:
         resp = await _raw_anthropic.messages.create(
             model=prompts.RESOLVE_MODEL,
-            max_tokens=200,
+            max_tokens=40,
             system=prompts.RESOLVE_PROMPT,
-            messages=[{"role": "user", "content": f"location={location!r} time={observed_at!r}"}],
+            messages=[{"role": "user", "content": f"time={observed_at!r}"}],
         )
-        raw = _first_text(resp).strip()
-        # Tolerate code fences / stray prose around the JSON object.
-        start, end = raw.find("{"), raw.rfind("}")
-        parsed = json.loads(raw[start : end + 1]) if start != -1 and end != -1 else {}
+        window = _first_text(resp).strip().strip('"')
+        return window or "recent"
     except Exception as e:
         logger.warning(
-            f"Input parse failed: {e}", extra={"operation": "resolve_inputs", "status": "error"}
+            f"Date parse failed: {e}", extra={"operation": "resolve_inputs", "status": "error"}
         )
-        parsed = {}
-    return {
-        "region_code": parsed.get("region_code"),
-        "observed_window": parsed.get("observed_window") or "recent",
-    }
+        return "recent"
 
 
 async def resolve_inputs(state: BirdState) -> dict[str, Any]:
-    """Resolve location -> region code + observed_window; clarify via interrupt when needed."""
+    """Deterministically resolve region (+point) via geocoding; clarify via interrupt."""
     location = state.get("location", "") or ""
     observed_at = state.get("observed_at")
     ask_rounds = state.get("ask_rounds", 0)
+    lat_in, lng_in = state.get("lat"), state.get("lng")
 
-    parsed = await _parse_inputs(location, observed_at)
-    region = parsed["region_code"]
-    window = parsed["observed_window"]
+    resolved = await resolve_region(text=location, lat=lat_in, lng=lng_in)
+    window = await _parse_date(observed_at)
+    if window == "unparseable":
+        window = "recent"
 
-    # Validate a proposed region against eBird; drop it if unknown.
-    if region:
-        info = await ebird_client.get_region_info(region)
-        if info is None:
-            region = None
+    region = resolved["region_code"]
+    lat, lng = resolved["lat"], resolved["lng"]
+    display = resolved.get("display_name")
+
+    if display:
+        _emit({"type": "status", "message": f"Looking around {display}..."})
 
     answer: Optional[str] = None
     if region is None and ask_rounds < prompts.MAX_ASK_ROUNDS:
-        payload: dict[str, Any]
         if location.strip():
-            # provided but unresolved -> HARD clarify
-            payload = {
+            payload: dict[str, Any] = {
                 "reason": "clarify_location",
                 "question": (
-                    f"I couldn't pin down “{location}” to a birding region. "
+                    f'I couldn\'t pin down "{location}" to a birding region. '
                     "Which country/state (or nearest city) was it?"
                 ),
             }
         else:
-            # missing -> SOFT clarify (skippable)
             payload = {
                 "reason": "clarify_location",
-                "question": "Where did you see it? A location helps a lot — or skip and I'll do my best.",
-                "options": ["Skip — no location"],
+                "question": "Where did you see it? A location helps a lot -- or skip and I'll do my best.",
+                "options": ["Skip -- no location"],
             }
         answer = interrupt(payload)
         ask_rounds += 1
-        # Re-parse with the human's answer (unless they skipped).
-        if answer and answer.strip().lower() not in {"skip", "skip — no location", "not sure"}:
-            reparsed = await _parse_inputs(answer, observed_at)
-            region = reparsed["region_code"]
-            if region and await ebird_client.get_region_info(region) is None:
-                region = None
-            window = reparsed["observed_window"]
-
-    # Unparseable date is a soft, low-value ask; for v1 we proceed as "recent"
-    # and let the agent ask via ask_user only if season proves decisive.
-    if window == "unparseable":
-        window = "recent"
+        if answer and answer.strip().lower() not in {"skip", "skip -- no location", "not sure"}:
+            reparsed = await resolve_region(text=answer)
+            region, lat, lng = reparsed["region_code"], reparsed["lat"], reparsed["lng"]
 
     context = HumanMessage(
         content=(
             f"Resolved region: {region or 'UNKNOWN (proceed description-only, lower confidence)'}. "
             f"Observation window: {window}. "
             + (
-                "Use get_regional_birds for recent presence."
+                "Use get_regional_birds for what's present near the sighting."
                 if window == "recent"
                 else f"The sighting was on {window}; prefer date-anchored evidence and reason about seasonality."
             )
@@ -147,6 +133,8 @@ async def resolve_inputs(state: BirdState) -> dict[str, Any]:
     )
     return {
         "region": region,
+        "lat": lat,
+        "lng": lng,
         "observed_window": window,
         "ask_rounds": ask_rounds,
         "messages": [context],
@@ -232,7 +220,7 @@ def _close_pending_tool_calls(messages: list[Any], verdict_note: str) -> list[To
     valid for a later follow-up turn.
 
     Returns ``[]`` when the agent concluded with plain prose (no tool call to
-    close) — emitting a ToolMessage with no matching ``tool_use`` block would
+    close) -- emitting a ToolMessage with no matching ``tool_use`` block would
     corrupt the transcript and make the next ``/continue`` turn 400. A terminal
     tool call gets ``verdict_note``; a non-terminal call that never ran (e.g. a
     data tool reached after the data budget was spent) is closed honestly rather
@@ -281,7 +269,7 @@ async def submit_id(state: BirdState) -> dict[str, Any]:
 
 
 async def inconclusive(state: BirdState) -> dict[str, Any]:
-    """Terminal: honest "can't identify" — closest guesses + what would help."""
+    """Terminal: honest "can't identify" -- closest guesses + what would help."""
     messages = state.get("messages", [])
     call = _last_terminal_tool_call(messages) or {}
     args = call.get("args", {})
@@ -290,7 +278,7 @@ async def inconclusive(state: BirdState) -> dict[str, Any]:
         "top_species": None,
         # Surface closest guesses as alternates so the existing card renders them.
         "alternate_species": args.get("closest_guesses") or [],
-        # Always give concrete "what would help" examples — fall back to the
+        # Always give concrete "what would help" examples -- fall back to the
         # standard prompts when the agent didn't spell them out itself.
         "clarification": args.get("what_would_help") or prompts.FALLBACK_RESPONSE["clarification"],
     }
@@ -305,7 +293,7 @@ async def follow_up(state: BirdState) -> dict[str, Any]:
     new message and hand back to investigate (which may re-identify or answer).
 
     Terminal nodes close their own tool call, so the transcript is already valid
-    here — we only add the (framed) human message and clear the prior verdict."""
+    here -- we only add the (framed) human message and clear the prior verdict."""
     message = state.get("follow_up_message") or ""
     return {
         "messages": [HumanMessage(content=prompts.FOLLOW_UP_PROMPT.format(message=message))],
