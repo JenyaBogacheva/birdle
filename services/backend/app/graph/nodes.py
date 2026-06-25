@@ -12,6 +12,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
 
+from ..helpers.ebird_client import ebird_client
 from ..helpers.geocoder import resolve_region
 from ..settings import settings
 from . import prompts
@@ -177,6 +178,186 @@ async def investigate(state: BirdState) -> dict[str, Any]:
 
     response = await _agent_model().ainvoke(messages)
     return {"messages": [response]}
+
+
+# ---------------------------------------------------------------- visual check
+# Raw Anthropic tool schema for the vision verdict. Forced tool_choice gives
+# structured JSON; thinking stays OFF here so forcing a tool is allowed.
+_VISUAL_VERDICT_TOOL: dict[str, Any] = {
+    "name": "visual_verdict",
+    "description": "Report which candidate's reference photo best matches the described bird.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "best_match": {
+                "type": "string",
+                "description": (
+                    "Common name of the candidate whose reference photo best fits the "
+                    "description, exactly as labelled; or 'none' if none fit well."
+                ),
+            },
+            "top_still_best": {
+                "type": "boolean",
+                "description": (
+                    "True if the proposed top candidate (the first photo) is still among "
+                    "the best visual matches for the description."
+                ),
+            },
+            "note": {
+                "type": "string",
+                "description": (
+                    "One sentence: what the photos show versus the description. Judge "
+                    "structure/shape/bill first; treat plumage colour as soft evidence."
+                ),
+            },
+        },
+        "required": ["best_match", "top_still_best", "note"],
+    },
+}
+
+
+async def _candidate_images(args: dict[str, Any]) -> list[tuple[str, str, str]]:
+    """(name, base64_data, media_type) for the submitted candidates (top first).
+
+    Pulls the top species plus alternates, dedupes by name, resolves each Wikimedia
+    lead photo and downloads its bytes (Anthropic's URL fetcher is blocked by
+    Wikimedia, so we inline base64). Keeps up to three that actually downloaded.
+    """
+    top = args.get("top_species") or {}
+    candidates = [top, *(args.get("alternate_species") or [])]
+    out: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for cand in candidates:
+        name = (cand or {}).get("common_name") or (cand or {}).get("name")
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        img = await ebird_client.get_species_image(name)
+        if img and img.get("image_url"):
+            fetched = await ebird_client.fetch_image_b64(img["image_url"])
+            if fetched:
+                out.append((name, fetched[0], fetched[1]))
+        if len(out) >= 3:
+            break
+    return out
+
+
+async def _run_visual_verdict(
+    state: BirdState, images: list[tuple[str, str, str]]
+) -> dict[str, Any]:
+    """Vision call: compare the candidate photos against the description."""
+    content: list[dict[str, Any]] = [
+        {
+            "type": "text",
+            "text": prompts.VISUAL_VERIFY_PROMPT.format(
+                description=state.get("description") or "(none given)",
+                region=state.get("region") or "unknown",
+            ),
+        }
+    ]
+    for i, (name, data, media_type) in enumerate(images):
+        label = "Top candidate" if i == 0 else f"Alternative {i}"
+        content.append({"type": "text", "text": f"{label}: {name}"})
+        content.append(
+            {
+                "type": "image",
+                "source": {"type": "base64", "media_type": media_type, "data": data},
+            }
+        )
+
+    resp = await _raw_anthropic.messages.create(  # type: ignore[call-overload]
+        model=prompts.VISUAL_VERIFY_MODEL,
+        max_tokens=500,
+        tools=[_VISUAL_VERDICT_TOOL],
+        tool_choice={"type": "tool", "name": "visual_verdict"},
+        messages=[{"role": "user", "content": content}],
+    )
+    for block in resp.content:
+        if getattr(block, "type", None) == "tool_use" and block.name == "visual_verdict":
+            return dict(block.input)  # type: ignore[arg-type]
+    return {"top_still_best": True}  # malformed -> don't block the ID
+
+
+def _closing_messages(last: Any, terminal_content: str) -> list[ToolMessage]:
+    """Close every open tool call on ``last`` so the transcript stays valid for the
+    next investigate turn; the terminal (submit) call carries the corrective text."""
+    closed: list[ToolMessage] = []
+    for call in getattr(last, "tool_calls", None) or []:
+        call_id = call.get("id")
+        if not call_id:
+            continue
+        content = terminal_content if call.get("name") in TERMINAL_TOOL_NAMES else "noted"
+        closed.append(ToolMessage(content=content, tool_call_id=call_id))
+    return closed
+
+
+async def verify_visual(state: BirdState) -> dict[str, Any]:
+    """Compare the submitted candidates' reference photos against the description.
+
+    Confirms the ID (-> submit_id) or, when a different candidate's photo fits the
+    description better, bounces it back to investigate with a correction. Degrades
+    gracefully: any skip condition or failure just confirms, never blocking an ID.
+    """
+    messages = state.get("messages", [])
+    call = _last_terminal_tool_call(messages) or {}
+    args = call.get("args", {})
+    top = args.get("top_species") or {}
+    top_name = top.get("common_name") or top.get("name")
+    top_code = top.get("species_code")
+    bounces = state.get("visual_bounces", 0)
+
+    # Skip (confirm) when there's nothing to verify, we already concluded this exact
+    # bird this session, or we've spent our one correction.
+    if (
+        not top_name
+        or (top_code and top_code == state.get("last_species_code"))
+        or bounces >= prompts.MAX_VISUAL_BOUNCES
+    ):
+        return {"visual_verdict": "confirm"}
+
+    images = await _candidate_images(args)
+    if not images:
+        return {"visual_verdict": "confirm"}  # no photo to look at -> don't block
+
+    _emit({"type": "status", "message": "Comparing your description with reference photos…"})
+    try:
+        verdict = await _run_visual_verdict(state, images)
+    except Exception as e:  # graceful degradation — accept the ID
+        logger.warning(
+            f"Visual verification failed, accepting ID: {e}",
+            extra={"operation": "verify_visual", "status": "error", "error_type": type(e).__name__},
+        )
+        return {"visual_verdict": "confirm"}
+
+    best = (verdict.get("best_match") or "").strip()
+    note = (verdict.get("note") or "").strip()
+    top_still = verdict.get("top_still_best", True)
+
+    logger.info(
+        "Visual verification verdict",
+        extra={
+            "operation": "verify_visual",
+            "status": "success",
+            "top_candidate": top_name,
+            "best_match": best,
+            "top_still_best": bool(top_still),
+        },
+    )
+
+    # Confirm when the top pick still fits, or no clearly-better named candidate.
+    if top_still or best.lower() in ("", "none", str(top_name).lower()):
+        if note:
+            _emit({"type": "detective_note", "message": "Reference photos fit the description."})
+        return {"visual_verdict": "confirm"}
+
+    # Contradiction: a different candidate's photo fits the description better.
+    _emit({"type": "detective_note", "message": f"The photos: {best} fits better."})
+    feedback = prompts.visual_feedback_message(str(top_name), best, note)
+    return {
+        "messages": _closing_messages(messages[-1], feedback),
+        "visual_bounces": bounces + 1,
+        "visual_verdict": "revise",
+    }
 
 
 def _last_terminal_tool_call(messages: list[Any]) -> Optional[dict[str, Any]]:

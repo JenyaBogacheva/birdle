@@ -18,7 +18,8 @@ React SPA → FastAPI POST /api/identify/stream → guardrail node (Haiku: is it
        ├── get_regional_birds / get_species_frequency / get_regional_rarities
        ├── lookup_family                       ← direct httpx → eBird
        └── web_search(query)                   ← Tavily API
-  → confidence_gate (grounding guards) → { submit_id | ask_user | inconclusive }
+  → confidence_gate (grounding guards) → verify_visual (vision photo check)
+       → { submit_id | ask_user | inconclusive }
   → SSE stream → (on ask_user) POST /api/identify/resume {session_id, user_message}
                  (after a result)  POST /api/identify/continue {session_id, user_message}
                                    → follow_up node → investigate (refine or answer)

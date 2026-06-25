@@ -15,13 +15,19 @@ from .tools import EXECUTABLE_TOOLS
 
 # Router result -> actual destination node. "investigate" bounce goes via the
 # gate_feedback node so the open terminal tool call gets a closing ToolMessage.
+# A clean submit lands on verify_visual (the photo check) before submit_id.
 _ROUTE_MAP: dict[Hashable, str] = {
     "tools": "tools",
-    "submit_id": "submit_id",
+    "submit_id": "verify_visual",
     "ask_user": "ask_user",
     "inconclusive": "inconclusive",
     "investigate": "gate_feedback",
 }
+
+
+def _route_after_visual(state: BirdState) -> str:
+    """verify_visual outcome: bounce back to investigate, or proceed to submit_id."""
+    return "investigate" if state.get("visual_verdict") == "revise" else "submit_id"
 
 
 def _route_from_guardrail(state: BirdState) -> str:
@@ -55,6 +61,7 @@ def build_graph() -> Any:
     builder.add_node("investigate", nodes.investigate)
     builder.add_node("tools", ToolNode(EXECUTABLE_TOOLS))
     builder.add_node("gate_feedback", gate_feedback)
+    builder.add_node("verify_visual", nodes.verify_visual)
     builder.add_node("ask_user", nodes.ask_user)
     builder.add_node("submit_id", nodes.submit_id)
     builder.add_node("inconclusive", nodes.inconclusive)
@@ -70,6 +77,11 @@ def build_graph() -> Any:
     # gets the new message + full prior context and re-runs the investigation.
     builder.add_edge("follow_up", "investigate")
     builder.add_conditional_edges("investigate", routing.route_after_investigate, _ROUTE_MAP)
+    builder.add_conditional_edges(
+        "verify_visual",
+        _route_after_visual,
+        {"investigate": "investigate", "submit_id": "submit_id"},  # type: ignore[arg-type]
+    )
     builder.add_edge("tools", "investigate")
     builder.add_edge("gate_feedback", "investigate")
     builder.add_edge("ask_user", "investigate")

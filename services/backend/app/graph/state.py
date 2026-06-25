@@ -33,6 +33,8 @@ class BirdState(TypedDict, total=False):
     # HITL bookkeeping
     ask_rounds: int
     gate_bounces: int  # times a terminal was bounced back by a failed guard
+    visual_bounces: int  # times the visual check bounced a submitted ID back
+    visual_verdict: Optional[str]  # "confirm" | "revise" — set by verify_visual
     # Set by the runner on a follow-up turn; consumed by the follow_up node
     follow_up_message: Optional[str]
     # species_code of the last GROUNDED conclusion (set by submit_id). Lets a
