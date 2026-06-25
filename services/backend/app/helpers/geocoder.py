@@ -8,12 +8,94 @@ User-Agent is required by their usage policy.
 from __future__ import annotations
 
 import logging
+import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any, Optional
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# Admin-area words dropped before matching (lowercased, diacritic-free forms).
+_ADMIN_WORDS = {
+    "tinh",
+    "thanh",
+    "pho",
+    "province",
+    "provincia",
+    "de",
+    "del",
+    "state",
+    "city",
+    "region",
+    "prefecture",
+    "district",
+    "county",
+    "oblast",
+    "krai",
+    "department",
+    "governorate",
+    "do",
+    "si",
+}
+
+
+def _build_translit_table() -> dict[int, str]:
+    """Map non-decomposing Latin letters (e.g. Đ→D) to their ASCII base."""
+    mapping: dict[int, str] = {}
+    for cp in range(0x0100, 0x0250):  # Latin Extended-A and -B
+        c = chr(cp)
+        nfkd = unicodedata.normalize("NFKD", c)
+        stripped = "".join(x for x in nfkd if not unicodedata.combining(x))
+        if not all(ord(x) < 128 for x in stripped):
+            try:
+                name = unicodedata.name(c)
+                if name.startswith("LATIN ") and "LETTER" in name:
+                    parts = name.split()
+                    idx = parts.index("LETTER")
+                    base = parts[idx + 1]
+                    if len(base) == 1 and base.isalpha():
+                        mapping[cp] = base if "CAPITAL" in parts else base.lower()
+                        continue
+            except (ValueError, IndexError, KeyError):
+                pass
+            mapping[cp] = " "
+    return mapping
+
+
+_TRANSLIT: dict[int, str] = _build_translit_table()
+
+
+def normalize_region_name(name: str) -> str:
+    """Lowercase, strip diacritics, drop admin words, collapse whitespace."""
+    transliterated = (name or "").translate(_TRANSLIT)
+    decomposed = unicodedata.normalize("NFKD", transliterated)
+    ascii_only = "".join(c for c in decomposed if not unicodedata.combining(c))
+    ascii_only = re.sub(r"[^a-zA-Z\s]", " ", ascii_only).lower()
+    tokens = [t for t in ascii_only.split() if t and t not in _ADMIN_WORDS]
+    return " ".join(tokens)
+
+
+def match_subnational1(admin1_name: str, region_list: list[dict[str, str]]) -> Optional[str]:
+    """eBird code whose normalized name == or token-subset-matches admin1_name."""
+    target = normalize_region_name(admin1_name)
+    if not target:
+        return None
+    target_tokens = set(target.split())
+    best: Optional[str] = None
+    for r in region_list:
+        cand = normalize_region_name(r.get("name", ""))
+        if not cand:
+            continue
+        if cand == target:
+            return r.get("code")  # exact wins immediately
+        cand_tokens = set(cand.split())
+        # token-subset both directions ("lam dong" vs "lam dong city")
+        if cand_tokens and (cand_tokens <= target_tokens or target_tokens <= cand_tokens):
+            best = best or r.get("code")
+    return best
+
 
 NOMINATIM_BASE = "https://nominatim.openstreetmap.org"
 NOMINATIM_UA = "BirdleAI/1.0 (bird identification; https://github.com/birdle-ai)"

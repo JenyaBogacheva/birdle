@@ -1,7 +1,11 @@
 import httpx
 import pytest
 
-from services.backend.app.helpers.geocoder import GeocoderClient
+from services.backend.app.helpers.geocoder import (
+    GeocoderClient,
+    match_subnational1,
+    normalize_region_name,
+)
 
 
 def _resp(status, payload):
@@ -96,3 +100,29 @@ async def test_reverse_geocode_parses(monkeypatch):
     monkeypatch.setattr(c._client, "get", fake_get)
     r = await c.reverse_geocode(11.9, 108.4)
     assert r.admin1_name == "Tỉnh Lâm Đồng" and r.country_code == "VN"
+
+
+# ---------------------------------------------------------------------------
+# normalize_region_name + match_subnational1
+# ---------------------------------------------------------------------------
+
+VN_LIST = [{"code": "VN-68", "name": "Lam Dong"}, {"code": "VN-44", "name": "Hanoi"}]
+US_LIST = [{"code": "US-NY", "name": "New York"}, {"code": "US-NJ", "name": "New Jersey"}]
+
+
+def test_normalize_strips_diacritics_and_admin_words():
+    assert normalize_region_name("Tỉnh Lâm Đồng") == "lam dong"
+    assert normalize_region_name("New York State") == "new york"
+    assert normalize_region_name("Provincia de Buenos Aires") == "buenos aires"
+
+
+def test_match_subnational1_diacritic_insensitive():
+    assert match_subnational1("Tỉnh Lâm Đồng", VN_LIST) == "VN-68"
+
+
+def test_match_subnational1_plain():
+    assert match_subnational1("New York", US_LIST) == "US-NY"
+
+
+def test_match_subnational1_no_match_returns_none():
+    assert match_subnational1("Atlantis", VN_LIST) is None
