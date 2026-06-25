@@ -359,6 +359,7 @@ class TestGetNearbyBirds:
         assert params["lat"] == 11.9
         assert params["lng"] == 108.4
         assert params["dist"] == 50
+        assert params["back"] == 14
 
     async def test_error_returns_fallback(self):
         ebird = eBirdClient()
