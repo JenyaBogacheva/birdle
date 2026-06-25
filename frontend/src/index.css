@@ -33,7 +33,7 @@ button { font-family: var(--font-body); }
 .bg-layer { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
 .bg-photo {
   position: absolute; inset: -2px;
-  background-size: cover; background-position: 70% 22%;
+  background-size: cover; background-position: var(--photo-pos, 70% 22%);
   transition: filter .6s ease, transform .6s ease, background-image .4s ease;
 }
 .bg-tint { position: absolute; inset: 0; background: var(--photo-tint);
@@ -107,7 +107,7 @@ button { font-family: var(--font-body); }
 .bd-poster { position: relative; width: 42%; max-width: 620px; min-width: 380px; flex: none; overflow: hidden;
   display: flex; flex-direction: column; justify-content: space-between; }
 .bd-poster-photo { position: absolute; inset: -2px; background-size: cover;
-  background-position: 70% 26%; transition: filter .7s ease, transform .7s ease, background-image .4s ease; }
+  background-position: var(--photo-pos, 70% 26%); transition: filter .7s ease, transform .7s ease, background-image .4s ease; }
 .bd-poster-tint { position: absolute; inset: 0; background: var(--photo-tint);
   mix-blend-mode: var(--photo-blend); opacity: .5; }
 .bd-poster-scrim { position: absolute; inset: 0; background:

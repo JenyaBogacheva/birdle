@@ -132,9 +132,14 @@ export function useBirdleSession(): BirdleSession {
   }, [feed]);
 
   const photoUrl = result?.photo ? `url('${result.photo}')` : AMBIENT_PHOTO;
+  // Hero focal point; when absent each photo layer keeps its own static crop.
+  const photoPos =
+    result?.photo && result.photoFocus
+      ? `${result.photoFocus.x}% ${result.photoFocus.y}%`
+      : undefined;
   const vars = useMemo(
-    () => ({ ...BASE_VARS, '--photo-url': photoUrl }) as CSSProperties,
-    [photoUrl],
+    () => ({ ...BASE_VARS, '--photo-url': photoUrl, '--photo-pos': photoPos }) as CSSProperties,
+    [photoUrl, photoPos],
   );
 
   /** Append a step line to the active thinking block (de-duping repeats). */

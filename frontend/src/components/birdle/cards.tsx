@@ -45,13 +45,16 @@ export function ResultCard({ data, noBanner }: ResultCardProps) {
     <div style={{ background: 'var(--card-bg)', border: 'var(--card-border)', borderRadius: 18,
       overflow: 'hidden', boxShadow: '0 14px 40px -26px rgba(18,22,16,0.5)' }}>
       {!noBanner && (
-        <div style={{ position: 'relative', height: showPhoto ? 158 : 96, display: 'grid', placeItems: 'center',
+        // Mobile banner: show the whole photo uncropped (full width, natural
+        // height) so an off-centre head is never clipped — vertical space is
+        // cheap here. The desktop portrait poster, where cropping is forced,
+        // is the only place the focal point does its work.
+        <div style={{ position: 'relative', ...(showPhoto ? {} : { height: 96, display: 'grid', placeItems: 'center' }),
           background: 'linear-gradient(135deg, color-mix(in oklch, var(--accent) 22%, var(--scrim)), var(--scrim))' }}>
           {showPhoto ? (
             <>
               <img src={data.photo} alt={data.name} onError={() => setImgError(true)}
-                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%',
-                  objectFit: 'cover', objectPosition: '50% 35%' }} />
+                style={{ display: 'block', width: '100%', height: 'auto' }} />
               <div style={{ position: 'absolute', inset: 0, background:
                 'linear-gradient(180deg, rgba(0,0,0,0.22), transparent 38%, rgba(0,0,0,0.04) 64%, rgba(0,0,0,0.34))' }} />
             </>

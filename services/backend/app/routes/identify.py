@@ -14,7 +14,9 @@ from ..graph import session_store
 from ..graph.runner import bird_runner
 from ..helpers.ebird_client import ebird_client
 from ..helpers.geocoder import geocoder
+from ..helpers.image_focus import get_image_focus
 from ..schemas.observation import (
+    ImageFocus,
     ObservationInput,
     RecommendationResponse,
     ResumeInput,
@@ -41,8 +43,12 @@ async def reverse_geocode(lat: float, lng: float) -> ReverseGeocodeResponse:
     return ReverseGeocodeResponse(label=geo.short_label if geo else "")
 
 
-async def _build_species_info(data: dict) -> SpeciesInfo:
-    """Build SpeciesInfo from an agent species dict, fetching its image."""
+async def _build_species_info(data: dict, with_focus: bool = False) -> SpeciesInfo:
+    """Build SpeciesInfo from an agent species dict, fetching its image.
+
+    ``with_focus`` resolves a hero focal point via Opus vision — only worth it
+    for the top species (the large portrait poster); alternates render small.
+    """
     common_name = data.get("common_name", "Unknown")
     scientific_name = data.get("scientific_name", "")
     species_code = data.get("species_code", "")
@@ -51,11 +57,16 @@ async def _build_species_info(data: dict) -> SpeciesInfo:
     image_query = scientific_name or common_name
     image_url = None
     image_credit = None
+    image_focus: ImageFocus | None = None
     if image_query and image_query != "Unknown":
         image_data = await ebird_client.get_species_image(image_query)
         if image_data:
             image_url = image_data.get("image_url")
             image_credit = image_data.get("photographer")
+            if with_focus and image_url:
+                focus = await get_image_focus(image_url)
+                if focus:
+                    image_focus = ImageFocus(**focus)
 
     # The eBird species page (with the range map) lives at /species/<code>;
     # fall back to a search when the agent didn't supply a code — keyed on the
@@ -76,6 +87,7 @@ async def _build_species_info(data: dict) -> SpeciesInfo:
         reasoning=data.get("reasoning"),
         image_url=image_url,
         image_credit=image_credit,
+        image_focus=image_focus,
     )
 
 
@@ -83,7 +95,7 @@ async def _build_response(agent_data: dict) -> RecommendationResponse:
     """Resolve images for top + alternates and assemble the response."""
     image_tasks = []
     if agent_data.get("top_species"):
-        image_tasks.append(_build_species_info(agent_data["top_species"]))
+        image_tasks.append(_build_species_info(agent_data["top_species"], with_focus=True))
     for alt in agent_data.get("alternate_species", []):
         image_tasks.append(_build_species_info(alt))
 

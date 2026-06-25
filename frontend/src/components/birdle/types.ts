@@ -55,6 +55,8 @@ export interface ResultCardData {
   summary: string;
   level: ConfidenceLevel;
   photo?: string;
+  /** Hero focal point "x% y%" for background-position; absent → static crop. */
+  photoFocus?: { x: number; y: number };
   imageCredit?: string;
   rangeLink: string;
   /** A clarifying question the agent attached to a confident-enough result. */
@@ -79,6 +81,7 @@ export function toResultCardData(res: RecommendationResponse): ResultCardData | 
     summary: top.reasoning || res.message,
     level: confidenceLevel(top.confidence),
     photo: top.image_url,
+    photoFocus: top.image_focus,
     imageCredit: top.image_credit,
     rangeLink: top.range_link,
     clarification: res.clarification || undefined,
