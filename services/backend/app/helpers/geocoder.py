@@ -15,6 +15,8 @@ from typing import Any, Optional
 
 import httpx
 
+from .ebird_client import ebird_client
+
 logger = logging.getLogger(__name__)
 
 # Admin-area words dropped before matching (lowercased, diacritic-free forms).
@@ -193,3 +195,49 @@ class GeocoderClient:
 
 
 geocoder = GeocoderClient()
+
+
+async def resolve_region(
+    text: Optional[str] = None,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+) -> dict[str, Any]:
+    """Deterministically resolve a location to an eBird region + point.
+
+    Coordinates win (reverse-geocode); otherwise forward-geocode ``text``.
+    Region code comes from name-matching eBird's subnational1 list, falling
+    back to the country code. lat/lng are returned only for a specific point.
+    """
+    none_result = {
+        "region_code": None,
+        "lat": None,
+        "lng": None,
+        "precision": "none",
+        "display_name": None,
+    }
+
+    if lat is not None and lng is not None:
+        geo = await geocoder.reverse_geocode(lat, lng)
+    elif text and text.strip():
+        geo = await geocoder.geocode(text)
+    else:
+        return none_result
+
+    if geo is None:
+        return none_result
+
+    region_code = geo.country_code
+    if not geo.is_country and geo.admin1_name:
+        region_list = await ebird_client.get_subnational1_list(geo.country_code)
+        matched = match_subnational1(geo.admin1_name, region_list)
+        if matched:
+            region_code = matched
+
+    precision = "country" if geo.is_country else "point"
+    return {
+        "region_code": region_code,
+        "lat": None if precision == "country" else geo.lat,
+        "lng": None if precision == "country" else geo.lng,
+        "precision": precision,
+        "display_name": geo.display_name,
+    }

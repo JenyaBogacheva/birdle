@@ -1,6 +1,7 @@
 import httpx
 import pytest
 
+import services.backend.app.helpers.geocoder as gmod
 from services.backend.app.helpers.geocoder import (
     GeocoderClient,
     match_subnational1,
@@ -132,3 +133,84 @@ def test_normalize_handles_non_decomposing_latin():
     assert normalize_region_name("Đồng") == "dong"  # U+0111
     assert normalize_region_name("Diyarbakır") == "diyarbakir"  # U+0131 dotless i
     assert normalize_region_name("Trøndelag") == "trondelag"  # U+00F8
+
+
+# ---------------------------------------------------------------------------
+# resolve_region
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_resolve_region_text_namematches_subnational1(monkeypatch):
+    async def fake_geocode(text):
+        return gmod.GeoResult(11.9, 108.4, "VN", "Tỉnh Lâm Đồng", "Da Lat, VN", False)
+
+    async def fake_list(cc):
+        return [{"code": "VN-68", "name": "Lam Dong"}]
+
+    monkeypatch.setattr(gmod.geocoder, "geocode", fake_geocode)
+    monkeypatch.setattr(gmod.ebird_client, "get_subnational1_list", fake_list)
+    out = await gmod.resolve_region(text="Dalat, Vietnam")
+    assert out["region_code"] == "VN-68"
+    assert out["precision"] == "point"
+    assert (round(out["lat"], 1), round(out["lng"], 1)) == (11.9, 108.4)
+
+
+@pytest.mark.asyncio
+async def test_resolve_region_falls_back_to_country_when_no_match(monkeypatch):
+    async def fake_geocode(text):
+        return gmod.GeoResult(11.9, 108.4, "VN", "Some Unknown Area", "x", False)
+
+    async def fake_list(cc):
+        return [{"code": "VN-68", "name": "Lam Dong"}]
+
+    monkeypatch.setattr(gmod.geocoder, "geocode", fake_geocode)
+    monkeypatch.setattr(gmod.ebird_client, "get_subnational1_list", fake_list)
+    out = await gmod.resolve_region(text="someplace, vietnam")
+    assert out["region_code"] == "VN"  # country fallback
+    assert out["precision"] == "point"  # still a specific point -> radius
+
+
+@pytest.mark.asyncio
+async def test_resolve_region_country_level_uses_region_presence(monkeypatch):
+    async def fake_geocode(text):
+        return gmod.GeoResult(16.0, 106.0, "VN", None, "Vietnam", True)
+
+    monkeypatch.setattr(gmod.geocoder, "geocode", fake_geocode)
+    out = await gmod.resolve_region(text="Vietnam")
+    assert out["region_code"] == "VN"
+    assert out["precision"] == "country"
+    assert out["lat"] is None and out["lng"] is None
+
+
+@pytest.mark.asyncio
+async def test_resolve_region_coordinates_win(monkeypatch):
+    called = {"reverse": False}
+
+    async def fake_reverse(lat, lng):
+        called["reverse"] = True
+        return gmod.GeoResult(lat, lng, "VN", "Tỉnh Lâm Đồng", "Da Lat", False)
+
+    async def fake_list(cc):
+        return [{"code": "VN-68", "name": "Lam Dong"}]
+
+    monkeypatch.setattr(gmod.geocoder, "reverse_geocode", fake_reverse)
+    monkeypatch.setattr(gmod.ebird_client, "get_subnational1_list", fake_list)
+    out = await gmod.resolve_region(text="ignored", lat=11.9, lng=108.4)
+    assert called["reverse"] and out["region_code"] == "VN-68" and out["precision"] == "point"
+
+
+@pytest.mark.asyncio
+async def test_resolve_region_geocode_none(monkeypatch):
+    async def fake_geocode(text):
+        return None
+
+    monkeypatch.setattr(gmod.geocoder, "geocode", fake_geocode)
+    out = await gmod.resolve_region(text="zzz")
+    assert out == {
+        "region_code": None,
+        "lat": None,
+        "lng": None,
+        "precision": "none",
+        "display_name": None,
+    }
