@@ -126,3 +126,9 @@ def test_match_subnational1_plain():
 
 def test_match_subnational1_no_match_returns_none():
     assert match_subnational1("Atlantis", VN_LIST) is None
+
+
+def test_normalize_handles_non_decomposing_latin():
+    assert normalize_region_name("Đồng") == "dong"  # U+0111
+    assert normalize_region_name("Diyarbakır") == "diyarbakir"  # U+0131 dotless i
+    assert normalize_region_name("Trøndelag") == "trondelag"  # U+00F8

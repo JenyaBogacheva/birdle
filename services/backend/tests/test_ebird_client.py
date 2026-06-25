@@ -342,7 +342,9 @@ class TestGetNearbyBirds:
 
         assert res["region"] == "geo"
         assert res["total_species"] == 2
-        assert {"common_name": "X", "scientific_name": "Xx", "species_code": "x"} in res["species_observed"]
+        assert {"common_name": "X", "scientific_name": "Xx", "species_code": "x"} in res[
+            "species_observed"
+        ]
 
     async def test_calls_correct_url_and_params(self):
         ebird = eBirdClient()

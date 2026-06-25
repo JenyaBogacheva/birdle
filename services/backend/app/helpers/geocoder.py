@@ -41,30 +41,33 @@ _ADMIN_WORDS = {
 }
 
 
-def _build_translit_table() -> dict[int, str]:
-    """Map non-decomposing Latin letters (e.g. Đ→D) to their ASCII base."""
-    mapping: dict[int, str] = {}
-    for cp in range(0x0100, 0x0250):  # Latin Extended-A and -B
-        c = chr(cp)
-        nfkd = unicodedata.normalize("NFKD", c)
-        stripped = "".join(x for x in nfkd if not unicodedata.combining(x))
-        if not all(ord(x) < 128 for x in stripped):
-            try:
-                name = unicodedata.name(c)
-                if name.startswith("LATIN ") and "LETTER" in name:
-                    parts = name.split()
-                    idx = parts.index("LETTER")
-                    base = parts[idx + 1]
-                    if len(base) == 1 and base.isalpha():
-                        mapping[cp] = base if "CAPITAL" in parts else base.lower()
-                        continue
-            except (ValueError, IndexError, KeyError):
-                pass
-            mapping[cp] = " "
-    return mapping
-
-
-_TRANSLIT: dict[int, str] = _build_translit_table()
+# Latin letters NFKD does not decompose — map to ASCII bases for matching.
+_TRANSLIT = str.maketrans(
+    {
+        "Đ": "D",
+        "đ": "d",
+        "Ð": "D",
+        "ð": "d",
+        "Ł": "L",
+        "ł": "l",
+        "Ŀ": "L",
+        "ŀ": "l",
+        "Ø": "O",
+        "ø": "o",
+        "İ": "I",
+        "ı": "i",
+        "Ħ": "H",
+        "ħ": "h",
+        "Ŧ": "T",
+        "ŧ": "t",
+        "Þ": "Th",
+        "þ": "th",
+        "Æ": "Ae",
+        "æ": "ae",
+        "Œ": "Oe",
+        "œ": "oe",
+    }
+)
 
 
 def normalize_region_name(name: str) -> str:

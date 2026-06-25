@@ -496,7 +496,10 @@ class eBirdClient:  # noqa: N801 - eBird is a proper brand name
         """
         start_time = time.time()
         fallback: dict[str, Any] = {
-            "region": "geo", "days_searched": days, "total_species": 0, "species_observed": []
+            "region": "geo",
+            "days_searched": days,
+            "total_species": 0,
+            "species_observed": [],
         }
         try:
             url = f"{EBIRD_API_BASE}/data/obs/geo/recent"
