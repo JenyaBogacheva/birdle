@@ -25,6 +25,21 @@ function formatErrorDetail(detail: unknown, fallback: string): string {
   return fallback || 'API request failed';
 }
 
+/**
+ * Reverse-geocode a coordinate to a short place label (for the "use my
+ * location" field). Returns '' on any failure — callers keep the coordinates.
+ */
+export async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/geocode/reverse?lat=${lat}&lng=${lng}`);
+    if (!res.ok) return '';
+    const data = (await res.json()) as { label?: string };
+    return data.label ?? '';
+  } catch {
+    return '';
+  }
+}
+
 export async function identifyBird(
   observation: ObservationInput
 ): Promise<RecommendationResponse> {

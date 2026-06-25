@@ -25,6 +25,33 @@ DALAT_SEARCH = [
 
 
 @pytest.mark.asyncio
+async def test_reverse_geocode_extracts_locality_and_short_label(monkeypatch):
+    c = GeocoderClient()
+    payload = {
+        "lat": "11.9",
+        "lon": "108.4",
+        "display_name": "Ward, Da Lat, Lam Dong, Vietnam",
+        "addresstype": "suburb",
+        "address": {"city": "Đà Lạt", "state": "Tỉnh Lâm Đồng", "country_code": "vn"},
+    }
+
+    async def fake_get(url, headers=None, params=None):
+        return _resp(200, payload)
+
+    monkeypatch.setattr(c._client, "get", fake_get)
+    r = await c.reverse_geocode(11.9, 108.4)
+    assert r.locality == "Đà Lạt"
+    assert r.short_label == "Đà Lạt, Tỉnh Lâm Đồng"
+
+
+def test_short_label_falls_back_to_admin1_then_display():
+    only_admin = gmod.GeoResult(1.0, 2.0, "VN", "Lâm Đồng", "Lâm Đồng, Vietnam", False)
+    assert only_admin.short_label == "Lâm Đồng"
+    bare = gmod.GeoResult(1.0, 2.0, "VN", None, "Somewhere, Vietnam", False)
+    assert bare.short_label == "Somewhere"
+
+
+@pytest.mark.asyncio
 async def test_geocode_parses_specific_place(monkeypatch):
     c = GeocoderClient()
 

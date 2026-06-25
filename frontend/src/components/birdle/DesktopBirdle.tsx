@@ -3,7 +3,7 @@
  * working column. Ported from the design's app/birdle-desktop.jsx.
  */
 import {
-  Icon, Brand, PrimaryButton, FieldShell, TextArea, TextInput,
+  Icon, Brand, PrimaryButton, FieldShell, TextArea, TextInput, LocateButton,
 } from './primitives';
 import { FeedItems, ResultActions } from './Feed';
 import { useFeedScroll } from '../../hooks/useFeedScroll';
@@ -35,19 +35,11 @@ function DeskCompose({ s }: { s: BirdleSession }) {
           <div style={{ display: 'flex', gap: 16 }}>
             <div style={{ flex: 1 }}>
               <FieldShell icon="pin" label="Where">
-                <TextInput value={s.loc} onChange={s.setLoc} ariaLabel="Where" placeholder="City or area" />
-                {s.geoStatus === 'on' ? (
-                  <button type="button" onClick={s.clearCoords} className="bd-geo-chip" aria-label="Clear my location">
-                    📍 Using your location ✕
-                  </button>
-                ) : (
-                  <button type="button" onClick={s.useMyLocation} className="bd-geo-chip"
-                          disabled={s.geoStatus === 'locating'} aria-label="Use my location">
-                    {s.geoStatus === 'locating' ? '📍 Locating…' : '📍 Use my location'}
-                  </button>
-                )}
+                <TextInput value={s.loc} onChange={s.setLoc} ariaLabel="Where" placeholder="City or area"
+                  trailing={<LocateButton status={s.geoStatus}
+                    onClick={s.geoStatus === 'on' ? s.clearCoords : s.useMyLocation} />} />
                 {s.geoStatus === 'error' && (
-                  <span className="bd-geo-err">Couldn't get your location — type it instead.</span>
+                  <span className="bd-geo-hint">Couldn’t find your location — type it instead.</span>
                 )}
               </FieldShell>
             </div>

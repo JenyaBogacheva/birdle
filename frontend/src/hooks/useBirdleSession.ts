@@ -9,6 +9,7 @@ import {
   identifyBirdStream,
   resumeIdentificationStream,
   continueIdentificationStream,
+  reverseGeocode,
 } from '../api/client';
 import type { ObservationInput, StreamEvent } from '../types/observation';
 import { buildVars, DEFAULT_THEME } from '../theme/birdleTheme';
@@ -93,9 +94,14 @@ export function useBirdleSession(): BirdleSession {
     if (!('geolocation' in navigator)) { setGeoStatus('error'); return; }
     setGeoStatus('locating');
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      async (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        setCoords({ lat, lng });
         setGeoStatus('on');
+        // Fill the field with a readable place name (coords still drive the
+        // precise lookup). A blank label just leaves whatever the user typed.
+        const label = await reverseGeocode(lat, lng);
+        if (label) setLoc(label);
       },
       () => setGeoStatus('error'),
       { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 },
@@ -103,6 +109,13 @@ export function useBirdleSession(): BirdleSession {
   }, []);
 
   const clearCoords = useCallback(() => { setCoords(null); setGeoStatus('idle'); }, []);
+
+  /** Typing a location by hand drops the precise pin so the text takes over. */
+  const onLocInput = useCallback((v: string) => {
+    setLoc(v);
+    setCoords(null);
+    setGeoStatus((st) => (st === 'on' || st === 'error' ? 'idle' : st));
+  }, []);
 
   const sessionIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -388,6 +401,6 @@ export function useBirdleSession(): BirdleSession {
     canStart: !!desc.trim() && (!!loc.trim() || !!coords),
     canFollowUp,
     coords, geoStatus, useMyLocation, clearCoords,
-    setDesc, setLoc, setTime, start, answer, followUp, reset, retry,
+    setDesc, setLoc: onLocInput, setTime, start, answer, followUp, reset, retry,
   };
 }

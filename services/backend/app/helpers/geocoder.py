@@ -107,6 +107,10 @@ NOMINATIM_UA = "BirdleAI/1.0 (bird identification; https://github.com/birdle-ai)
 TIMEOUT = 10.0
 
 
+# Address keys, most-specific first, for a concise human-readable place label.
+_LOCALITY_KEYS = ("city", "town", "village", "municipality", "suburb", "county")
+
+
 @dataclass(frozen=True)
 class GeoResult:
     lat: float
@@ -115,6 +119,18 @@ class GeoResult:
     admin1_name: Optional[str]  # e.g. "Tỉnh Lâm Đồng", or None
     display_name: str
     is_country: bool  # True when the match itself is a whole country
+    locality: Optional[str] = None  # city/town/area, when known
+
+    @property
+    def short_label(self) -> str:
+        """A concise place name to show in a location field (e.g. "Đà Lạt")."""
+        if self.locality and self.admin1_name and self.locality != self.admin1_name:
+            return f"{self.locality}, {self.admin1_name}"
+        return (
+            self.locality
+            or self.admin1_name
+            or (self.display_name.split(",")[0].strip() if self.display_name else "")
+        )
 
 
 def _parse(obj: dict[str, Any]) -> Optional[GeoResult]:
@@ -123,6 +139,7 @@ def _parse(obj: dict[str, Any]) -> Optional[GeoResult]:
         cc = (addr.get("country_code") or "").upper()
         if not cc:
             return None
+        locality = next((addr[k] for k in _LOCALITY_KEYS if addr.get(k)), None)
         return GeoResult(
             lat=float(obj["lat"]),
             lng=float(obj["lon"]),
@@ -130,6 +147,7 @@ def _parse(obj: dict[str, Any]) -> Optional[GeoResult]:
             admin1_name=addr.get("state") or addr.get("province") or None,
             display_name=obj.get("display_name", ""),
             is_country=(obj.get("addresstype") == "country"),
+            locality=locality,
         )
     except (KeyError, TypeError, ValueError):
         return None

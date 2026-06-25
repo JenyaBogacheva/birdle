@@ -216,6 +216,23 @@ class TestObservationInputSchema:
         assert obs.location == "Dalat" and obs.lat is None
 
 
+class TestReverseGeocodeEndpoint:
+    def test_returns_short_label(self, client):
+        from services.backend.app.helpers.geocoder import GeoResult
+
+        geo = GeoResult(11.9, 108.4, "VN", "Tỉnh Lâm Đồng", "x", False, locality="Đà Lạt")
+        with patch(f"{ROUTE}.geocoder.reverse_geocode", AsyncMock(return_value=geo)):
+            resp = client.get("/api/geocode/reverse?lat=11.9&lng=108.4")
+        assert resp.status_code == 200
+        assert resp.json()["label"] == "Đà Lạt, Tỉnh Lâm Đồng"
+
+    def test_empty_label_when_unresolved(self, client):
+        with patch(f"{ROUTE}.geocoder.reverse_geocode", AsyncMock(return_value=None)):
+            resp = client.get("/api/geocode/reverse?lat=0&lng=0")
+        assert resp.status_code == 200
+        assert resp.json()["label"] == ""
+
+
 class TestResumeEndpoint:
     def test_resume_streams_events(self, client):
         scripted = [

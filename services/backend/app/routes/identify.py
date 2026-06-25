@@ -13,10 +13,12 @@ from fastapi.responses import StreamingResponse
 from ..graph import session_store
 from ..graph.runner import bird_runner
 from ..helpers.ebird_client import ebird_client
+from ..helpers.geocoder import geocoder
 from ..schemas.observation import (
     ObservationInput,
     RecommendationResponse,
     ResumeInput,
+    ReverseGeocodeResponse,
     SpeciesInfo,
 )
 
@@ -25,6 +27,18 @@ logger = logging.getLogger(__name__)
 IDENTIFY_TIMEOUT = 120.0
 
 router = APIRouter(prefix="/api", tags=["identification"])
+
+
+@router.get("/geocode/reverse", response_model=ReverseGeocodeResponse)
+async def reverse_geocode(lat: float, lng: float) -> ReverseGeocodeResponse:
+    """Concise place label for a coordinate — fills the 'use my location' field.
+
+    Reuses the cached, policy-compliant geocoder (the browser cannot call
+    Nominatim directly with a proper User-Agent). Returns an empty label on any
+    failure; the caller keeps the coordinates regardless.
+    """
+    geo = await geocoder.reverse_geocode(lat, lng)
+    return ReverseGeocodeResponse(label=geo.short_label if geo else "")
 
 
 async def _build_species_info(data: dict) -> SpeciesInfo:

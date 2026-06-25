@@ -7,7 +7,7 @@ import { useState, useEffect, type CSSProperties, type ReactNode } from 'react';
 /* ---------- Icons (simple geometric line icons) ---------- */
 type IconName =
   | 'search' | 'pin' | 'clock' | 'arrow' | 'check' | 'chevron'
-  | 'info' | 'scope' | 'spark' | 'plus' | 'back' | 'bookmark';
+  | 'info' | 'scope' | 'spark' | 'plus' | 'back' | 'bookmark' | 'locate';
 
 interface IconProps {
   name: IconName;
@@ -15,13 +15,14 @@ interface IconProps {
   stroke?: number;
   color?: string;
   style?: CSSProperties;
+  className?: string;
 }
 
-export function Icon({ name, size = 20, stroke = 1.6, color = 'currentColor', style }: IconProps) {
+export function Icon({ name, size = 20, stroke = 1.6, color = 'currentColor', style, className }: IconProps) {
   const p = {
     width: size, height: size, viewBox: '0 0 24 24', fill: 'none',
     stroke: color, strokeWidth: stroke, strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const, style,
+    strokeLinejoin: 'round' as const, style, className,
   };
   switch (name) {
     case 'search': return <svg {...p}><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" /></svg>;
@@ -36,6 +37,7 @@ export function Icon({ name, size = 20, stroke = 1.6, color = 'currentColor', st
     case 'plus': return <svg {...p}><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
     case 'back': return <svg {...p}><path d="M15 6l-6 6 6 6" /></svg>;
     case 'bookmark': return <svg {...p}><path d="M6 4h12v16l-6-4-6 4V4Z" /></svg>;
+    case 'locate': return <svg {...p}><circle cx="12" cy="12" r="6.5" /><circle cx="12" cy="12" r="1.4" fill={color} stroke="none" /><line x1="12" y1="1.5" x2="12" y2="4.5" /><line x1="12" y1="19.5" x2="12" y2="22.5" /><line x1="1.5" y1="12" x2="4.5" y2="12" /><line x1="19.5" y1="12" x2="22.5" y2="12" /></svg>;
     default: return null;
   }
 }
@@ -155,15 +157,45 @@ export function TextArea({ value, onChange, placeholder, rows = 4, id, ariaLabel
   );
 }
 
-export function TextInput({ value, onChange, placeholder, id, ariaLabel, disabled }: TextFieldProps) {
+export function TextInput({ value, onChange, placeholder, id, ariaLabel, disabled, trailing }: TextFieldProps & { trailing?: ReactNode }) {
   const [f, setF] = useState(false);
-  return (
+  const input = (
     <input id={id} aria-label={ariaLabel} value={value} disabled={disabled}
       onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
       onFocus={() => setF(true)} onBlur={() => setF(false)}
       style={{ ...inputStyle, padding: '12px 13px', fontSize: 15,
+        paddingRight: trailing ? 42 : 13,
         borderColor: f ? 'var(--accent)' : 'var(--hairline-strong)',
         boxShadow: f ? '0 0 0 3px color-mix(in oklch, var(--accent) 16%, transparent)' : 'none' }} />
+  );
+  if (!trailing) return input;
+  return (
+    <span style={{ position: 'relative', display: 'block' }}>
+      {input}
+      <span style={{ position: 'absolute', top: '50%', right: 6, transform: 'translateY(-50%)',
+        display: 'flex', alignItems: 'center' }}>{trailing}</span>
+    </span>
+  );
+}
+
+/* ---------- In-field "use my location" control ---------- */
+export type GeoStatus = 'idle' | 'locating' | 'on' | 'error';
+
+export function LocateButton({ status, onClick }: { status: GeoStatus; onClick: () => void }) {
+  const [h, setH] = useState(false);
+  const on = status === 'on';
+  const locating = status === 'locating';
+  const label = on ? 'Clear current location' : 'Use my current location';
+  const color = on || h ? 'var(--accent-strong)' : 'var(--ink-soft)';
+  return (
+    <button type="button" onClick={onClick} disabled={locating}
+      onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
+      aria-label={label} aria-pressed={on} title={label}
+      style={{ display: 'grid', placeItems: 'center', width: 30, height: 30, borderRadius: 9,
+        border: 'none', background: on ? 'color-mix(in oklch, var(--accent) 13%, transparent)' : 'transparent',
+        cursor: locating ? 'default' : 'pointer', color, transition: 'color .16s ease, background .16s ease' }}>
+      <Icon name="locate" size={18} stroke={1.7} className={locating ? 'bd-locate-spin' : undefined} />
+    </button>
   );
 }
 
