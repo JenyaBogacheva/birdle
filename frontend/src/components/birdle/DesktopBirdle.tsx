@@ -36,6 +36,19 @@ function DeskCompose({ s }: { s: BirdleSession }) {
             <div style={{ flex: 1 }}>
               <FieldShell icon="pin" label="Where">
                 <TextInput value={s.loc} onChange={s.setLoc} ariaLabel="Where" placeholder="City or area" />
+                {s.geoStatus === 'on' ? (
+                  <button type="button" onClick={s.clearCoords} className="bd-geo-chip" aria-label="Clear my location">
+                    📍 Using your location ✕
+                  </button>
+                ) : (
+                  <button type="button" onClick={s.useMyLocation} className="bd-geo-chip"
+                          disabled={s.geoStatus === 'locating'} aria-label="Use my location">
+                    {s.geoStatus === 'locating' ? '📍 Locating…' : '📍 Use my location'}
+                  </button>
+                )}
+                {s.geoStatus === 'error' && (
+                  <span className="bd-geo-err">Couldn't get your location — type it instead.</span>
+                )}
               </FieldShell>
             </div>
             <div style={{ flex: 1 }}>

@@ -58,16 +58,20 @@ export interface BirdleSession {
   time: string;
   feed: FeedItem[];
   isLoading: boolean;
-  /** Whether the required fields (description + location) are filled. */
+  /** Whether the required fields (description + location or coords) are filled. */
   canStart: boolean;
   /** True once the latest turn has concluded — a follow-up can be sent. */
   canFollowUp: boolean;
   /** Latest confident result in the feed, for the desktop poster hero. */
   result: ResultCardData | null;
   vars: CSSProperties;
+  coords: { lat: number; lng: number } | null;
+  geoStatus: 'idle' | 'locating' | 'on' | 'error';
   setDesc: (v: string) => void;
   setLoc: (v: string) => void;
   setTime: (v: string) => void;
+  useMyLocation: () => void;
+  clearCoords: () => void;
   start: () => void;
   answer: (message: string) => void;
   followUp: (message: string) => void;
@@ -82,6 +86,23 @@ export function useBirdleSession(): BirdleSession {
   const [time, setTime] = useState('');
   const [feed, setFeed] = useState<FeedItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'locating' | 'on' | 'error'>('idle');
+
+  const useMyLocation = useCallback(() => {
+    if (!('geolocation' in navigator)) { setGeoStatus('error'); return; }
+    setGeoStatus('locating');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGeoStatus('on');
+      },
+      () => setGeoStatus('error'),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 },
+    );
+  }, []);
+
+  const clearCoords = useCallback(() => { setCoords(null); setGeoStatus('idle'); }, []);
 
   const sessionIdRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -239,10 +260,11 @@ export function useBirdleSession(): BirdleSession {
   const start = useCallback(() => {
     const description = desc.trim();
     const location = loc.trim();
-    if (!description || !location) return; // backend requires both
+    if (!description || (!location && !coords)) return; // need a description plus either a typed location or coordinates
     const observation: ObservationInput = {
       description,
-      location,
+      ...(location && { location }),
+      ...(coords && { lat: coords.lat, lng: coords.lng }),
       ...(time.trim() && { observed_at: time.trim() }),
     };
     lastTurnRef.current = { type: 'start' };
@@ -269,7 +291,7 @@ export function useBirdleSession(): BirdleSession {
       .finally(() => {
         if (!controller.signal.aborted) setIsLoading(false);
       });
-  }, [desc, loc, time, beginTurn, handleStreamEvent]);
+  }, [desc, loc, time, coords, beginTurn, handleStreamEvent]);
 
   /**
    * Shared driver for the two post-start turn kinds: answering a pending
@@ -363,8 +385,9 @@ export function useBirdleSession(): BirdleSession {
 
   return {
     phase, desc, loc, time, feed, isLoading, result, vars,
-    canStart: !!desc.trim() && !!loc.trim(),
+    canStart: !!desc.trim() && (!!loc.trim() || !!coords),
     canFollowUp,
+    coords, geoStatus, useMyLocation, clearCoords,
     setDesc, setLoc, setTime, start, answer, followUp, reset, retry,
   };
 }
