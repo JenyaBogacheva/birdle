@@ -26,6 +26,10 @@ async def lifespan(app: FastAPI):
     """Application lifespan handler."""
     logger.info(f"Starting {settings.app_name}")
     logger.info(f"Debug mode: {settings.debug}")
+    if settings.langsmith_tracing and settings.langsmith_api_key:
+        logger.info(f"LangSmith tracing enabled (project: {settings.langsmith_project})")
+    else:
+        logger.info("LangSmith tracing disabled")
     yield
     await ebird_client.close()
     logger.info(f"Shutting down {settings.app_name}")
